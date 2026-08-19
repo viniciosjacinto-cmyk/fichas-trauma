@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ficha Trauma">
+<meta name="theme-color" content="#12253d">
+<link rel="manifest" href="manifest.json">
+<title>Ficha de Trauma — PS CG HSP</title>
+<style>
+  :root{
+    --navy:#12253d; --red:#c62828; --green:#2e7d32; --amber:#b26a00;
+    --line:#c8ccd2; --bg:#eef0f3; --card:#fff; --ink:#16181c; --mut:#5c636c;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; padding:0; height:100%}
+  body{font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+       color:var(--ink); background:var(--bg); overscroll-behavior:none}
+  button{font:inherit; cursor:pointer}
+  input,textarea,select{font:inherit}
+
+  /* ---------- barra superior ---------- */
+  .top{position:sticky; top:0; z-index:50; background:var(--navy); color:#fff;
+       padding:calc(env(safe-area-inset-top) + 8px) 12px 8px; display:flex; align-items:center; gap:10px}
+  .top h1{font-size:16px; margin:0; font-weight:700; letter-spacing:.2px; white-space:nowrap}
+  .top .sp{flex:1}
+  .top .chip{background:rgba(255,255,255,.16); padding:5px 10px; border-radius:6px; font-size:13px}
+  .btn{border:0; border-radius:8px; padding:10px 14px; font-weight:600; font-size:15px;
+       background:#e7e9ed; color:var(--navy); min-height:44px}
+  .btn.p{background:var(--red); color:#fff}
+  .btn.g{background:var(--green); color:#fff}
+  .btn.o{background:transparent; color:#fff; border:1px solid rgba(255,255,255,.5)}
+  .btn:active{opacity:.75}
+
+  /* ---------- abas ---------- */
+  .tabs{display:flex; gap:4px; overflow-x:auto; background:#dfe3e8; padding:6px 8px;
+        position:sticky; top:0; z-index:40; -webkit-overflow-scrolling:touch}
+  .tabs button{border:0; background:#fff; color:var(--navy); border-radius:8px;
+               padding:10px 14px; white-space:nowrap; font-size:14px; font-weight:600; min-height:44px}
+  .tabs button.on{background:var(--navy); color:#fff}
+  .tabs button.done::after{content:" ✓"; color:var(--green)}
+  .tabs button.on.done::after{color:#8fe39a}
+
+  /* ---------- layout ---------- */
+  .wrap{padding:12px 12px 90px; max-width:1400px; margin:0 auto}
+  .sec{background:var(--card); border-radius:12px; padding:14px; margin-bottom:12px;
+       box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .sec h2{font-size:14px; margin:0 0 10px; color:var(--navy); text-transform:uppercase;
+          letter-spacing:.6px; border-bottom:2px solid var(--navy); padding-bottom:5px}
+  .grid{display:grid; gap:10px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)} .g6{grid-template-columns:repeat(6,1fr)}
+  @media(max-width:780px){.g3,.g4,.g6{grid-template-columns:repeat(2,1fr)}}
+  .fld{display:flex; flex-direction:column; gap:5px}
+  .fld>label{font-size:13px; font-weight:600; color:var(--mut)}
+  .fld input[type=text],.fld input[type=number],.fld textarea,.fld select{
+    border:1px solid var(--line); border-radius:8px; padding:11px 10px; font-size:16px; width:100%;
+    background:#fff; min-height:44px}
+  .fld textarea{min-height:66px; resize:vertical}
+
+  /* ---------- opções (radio/multi) ---------- */
+  .opts{display:flex; flex-wrap:wrap; gap:6px}
+  .opt{border:1.5px solid var(--line); background:#fff; border-radius:9px; padding:10px 12px;
+       font-size:15px; color:var(--ink); min-height:44px; display:flex; align-items:center}
+  .opt.on{background:var(--navy); border-color:var(--navy); color:#fff; font-weight:600}
+  .opt.on.warn{background:var(--red); border-color:var(--red)}
+  .opt.on.good{background:var(--green); border-color:var(--green)}
+
+  /* ---------- normal/alterado ---------- */
+  .xrow{border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px}
+  .xhead{display:flex; align-items:center; gap:10px; margin-bottom:6px}
+  .xltr{background:var(--navy); color:#fff; width:34px; height:34px; border-radius:8px;
+        display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; flex:none}
+  .xnorm{flex:1; font-size:14px; color:var(--mut)}
+  .btn-norm{border:1.5px solid var(--green); color:var(--green); background:#fff;
+            border-radius:9px; padding:10px 14px; font-weight:700; min-height:44px; white-space:nowrap}
+  .btn-norm.on{background:var(--green); color:#fff}
+
+  /* ---------- horários ---------- */
+  .clock{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; align-items:start}
+  @media(max-width:780px){.clock{grid-template-columns:repeat(2,1fr)}}
+  .tcard{border:1.5px solid var(--line); border-radius:10px; padding:8px; text-align:center; background:#fff;
+         display:flex; flex-direction:column}
+  .tcard.set{border-color:var(--navy); background:#f2f6fb}
+  .tcard.na{border-style:dashed; opacity:.6}
+  .tcard .tl{font-size:11px; font-weight:700; color:var(--mut); text-transform:uppercase;
+             letter-spacing:.2px; min-height:22px; line-height:1.1; display:flex; align-items:center; justify-content:center}
+  .tcard .tv{font-size:21px; font-weight:800; color:var(--navy); letter-spacing:.5px; margin:1px 0 5px;
+             font-variant-numeric:tabular-nums; line-height:1.15; white-space:nowrap; overflow:hidden}
+  .tcard .tv.off{color:#c3c8ce}
+  .trow{display:flex; gap:5px}
+  .tnow{flex:1; background:var(--red); color:#fff; border:0; border-radius:7px; padding:9px 4px;
+        font-weight:800; font-size:13.5px; min-height:44px}
+  .tsm{background:#e7e9ed; color:var(--navy); border:0; border-radius:7px; padding:9px 8px;
+       font-size:13px; font-weight:700; min-height:44px}
+
+  /* ---------- alertas ---------- */
+  .alert{border-radius:10px; padding:11px 13px; margin:10px 0; font-weight:700; font-size:15px}
+  .alert.r{background:#fdeaea; color:#8c2020; border:1.5px solid var(--red)}
+  .alert.g{background:#eaf5ea; color:#1b5e20; border:1.5px solid var(--green)}
+  .alert.a{background:#fff6e5; color:#7a4a00; border:1.5px solid var(--amber)}
+  .hint{font-size:12.5px; color:var(--mut)}
+
+  /* ---------- painéis de escore ---------- */
+  .score{border:1.5px solid var(--line); border-left-width:6px; border-radius:10px;
+         padding:10px 14px; background:#fff}
+  .score.r{border-color:var(--red); background:#fdeaea}
+  .score.g{border-color:var(--green); background:#f2f9f2}
+  .score.a{border-color:var(--amber); background:#fff8ec}
+  .score .sl{font-size:12px; font-weight:700; color:var(--mut); text-transform:uppercase; letter-spacing:.5px}
+  .score .sv{font-size:30px; font-weight:800; color:var(--navy); line-height:1.15; margin:2px 0}
+  .score .sd{font-size:13px; color:var(--mut)}
+
+  /* ---------- rodapé fixo ---------- */
+  .foot{position:fixed; left:0; right:0; bottom:0; z-index:60; background:#fff;
+        border-top:1px solid var(--line); padding:8px 12px calc(env(safe-area-inset-bottom) + 8px);
+        display:flex; gap:8px; align-items:center}
+  .foot .sp{flex:1}
+  .save{font-size:13px; color:var(--green); font-weight:700}
+
+  /* ---------- lista de casos ---------- */
+  .caso{display:flex; align-items:center; gap:12px; border:1px solid var(--line);
+        border-radius:10px; padding:12px; margin-bottom:8px; background:#fff}
+  .caso .id{font-weight:800; color:var(--navy); font-size:16px; min-width:130px}
+  .caso .meta{flex:1; font-size:13.5px; color:var(--mut)}
+  .badge{font-size:12px; font-weight:700; padding:4px 9px; border-radius:999px}
+  .badge.open{background:#fff6e5; color:#7a4a00}
+  .badge.closed{background:#eaf5ea; color:#1b5e20}
+  .empty{text-align:center; color:var(--mut); padding:40px 10px}
+  dialog{border:0; border-radius:14px; padding:0; max-width:560px; width:92%}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  .dlg{padding:18px}
+  .dlg h3{margin:0 0 8px; color:var(--navy)}
+  .mono{font-family:ui-monospace,Menlo,monospace; font-size:12px; white-space:pre-wrap;
+        background:#f4f6f8; border:1px solid var(--line); border-radius:8px; padding:10px;
+        max-height:40vh; overflow:auto}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>FICHA DE TRAUMA</h1>
+  <span class="chip" id="chipCaso">—</span>
+  <span class="sp"></span>
+  <button class="btn o" id="btnLista">Casos</button>
+</div>
+
+<div id="app"></div>
+
+<div class="foot" id="foot" style="display:none">
+  <span class="save" id="saveMsg">salvo</span>
+  <span class="sp"></span>
+  <button class="btn" id="btnPrev">‹ Anterior</button>
+  <button class="btn p" id="btnNext">Próximo ›</button>
+</div>
+
+<dialog id="dlgExport"><div class="dlg">
+  <h3>Exportar dados</h3>
+  <p class="hint">Copie o conteúdo abaixo e cole numa planilha, ou use o botão de baixar. Separador: ponto e vírgula.</p>
+  <div class="mono" id="csvOut"></div>
+  <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap">
+    <button class="btn g" id="btnCopy">Copiar</button>
+    <button class="btn" id="btnDl">Baixar CSV</button>
+    <button class="btn" id="btnDlJson">Backup JSON</button>
+    <span class="sp"></span>
+    <button class="btn" id="btnCloseExp">Fechar</button>
+  </div>
+</div></dialog>
+
+<script>
+"use strict";
+
+/* ============================ ESQUEMA ============================ */
+const HORARIOS = [
+  ["h_trauma","Trauma"],["h_porta","Porta (chegada)"],["h_acesso","1º acesso funcionante"],
+  ["h_efast","E-FAST"],["h_atx","Ácido tranexâmico"],["h_ptm","PTM acionado"],
+  ["h_transf","1ª transfusão"],["h_tc","TC executada"],["h_aviso","Aviso cirúrgico"],
+  ["h_cc","Entrada no CC"],["h_uti","Admissão UTI"],["h_saida","Saída da sala"]
+];
+
+const XABCDE = [
+  ["X","x","Sem sangramento ameaçador à vida",
+   ["Compressão","Torniquete","Sutura hemostática"]],
+  ["A","a","Via aérea pérvia, sem enfisema ou hematoma cervical, sem desvio de traqueia",
+   ["IOT","Cricotireoidostomia","Cânula orofaríngea"]],
+  ["B","b","MV presente bilateral, expansibilidade simétrica, tórax estável, lung slide presente",
+   ["Dreno à direita","Dreno à esquerda","Descompressão por agulha"]],
+  ["C","c","Estável, abdome indolor, pelve estável, TEC menor que 3 s",
+   ["Cinta pélvica","Acesso intraósseo","Acesso central"]],
+  ["D","d","Pupilas isocóricas e fotorreagentes, sem déficit focal",
+   ["Sinais de hipertensão intracraniana","Neurocirurgia acionada"]],
+  ["E","e","Dorso alinhado e sem lesões, pulsos 4/4, sem fratura exposta",
+   ["Manta térmica","Fluido aquecido","Nenhum aquecimento"]]
+];
+
+const SECOES = ["Identificação","Horários","Cena","Admissão","X-ABCDE","FAST / NEXUS","Hemostasia","Saída","Escores","Pós"];
+
+/* regiões do AIS para o cálculo do ISS */
+const AIS_REGIOES = [
+  ["ais_cabeca","Cabeça e pescoço"],["ais_face","Face"],["ais_torax","Tórax"],
+  ["ais_abdome","Abdome e pelve visceral"],["ais_extremidades","Extremidades e pelve óssea"],["ais_externo","Externo"]
+];
+
+/* ============================ ESTADO ============================ */
+const KEY = "fichaTrauma.casos.v1";
+let CASOS = [];
+let atual = null;      // índice do caso aberto
+let aba = 0;
+let vista = "lista";   // "lista" | "ficha"
+
+function carregar(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    CASOS = raw ? JSON.parse(raw) : [];
+  }catch(e){ CASOS = []; avisoStorage(); }
+}
+function salvar(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify(CASOS));
+    flash("salvo " + agoraHM());
+  }catch(e){ flash("SEM ARMAZENAMENTO — exporte antes de fechar", true); }
+}
+function avisoStorage(){
+  console.warn("localStorage indisponível — dados só na memória desta sessão");
+}
+let flashT=null;
+function flash(msg, erro){
+  const el = document.getElementById("saveMsg");
+  if(!el) return;
+  el.textContent = msg;
+  el.style.color = erro ? "#c62828" : "#2e7d32";
+  clearTimeout(flashT);
+  if(!erro) flashT = setTimeout(()=>{ el.textContent = "salvo"; }, 2500);
+}
+
+/* ============================ UTILIDADES ============================ */
+function dois(n){ return String(n).padStart(2,"0"); }
+function agoraHM(){ const d=new Date(); return dois(d.getHours())+":"+dois(d.getMinutes()); }
+function hojeISO(){ const d=new Date(); return d.getFullYear()+"-"+dois(d.getMonth()+1)+"-"+dois(d.getDate()); }
+function hojeBR(){ const d=new Date(); return dois(d.getDate())+"/"+dois(d.getMonth()+1)+"/"+d.getFullYear(); }
+
+function proximoId(){
+  const ano = new Date().getFullYear();
+  const n = CASOS.filter(c=>String(c.id||"").includes("TR-"+ano)).length + 1;
+  return "TR-"+ano+"-"+String(n).padStart(4,"0");
+}
+function novoCaso(){
+  const c = { id: proximoId(), data: hojeBR(), _criado: new Date().toISOString(), _fechado:false };
+  CASOS.unshift(c); atual = 0; aba = 0; vista="ficha"; salvar(); render();
+}
+function caso(){ return CASOS[atual] || {}; }
+function set(k,v){ const c=caso(); if(v===undefined||v===null||v==="") delete c[k]; else c[k]=v; salvar(); }
+function get(k){ return caso()[k]; }
+function toggleMulti(k,v){
+  const c=caso(); const arr = Array.isArray(c[k])? c[k].slice():[];
+  const i = arr.indexOf(v);
+  if(i>=0) arr.splice(i,1); else arr.push(v);
+  if(arr.length) c[k]=arr; else delete c[k];
+  salvar();
+}
+function tem(k,v){ const a=get(k); return Array.isArray(a) && a.indexOf(v)>=0; }
+
+/* minutos entre dois "HH:MM" — assume mesmo dia ou virada de meia-noite */
+function difMin(a,b){
+  if(!a||!b||a==="NA"||b==="NA") return null;
+  const pa=a.split(":"), pb=b.split(":");
+  if(pa.length<2||pb.length<2) return null;
+  let ma=(+pa[0])*60+(+pa[1]), mb=(+pb[0])*60+(+pb[1]);
+  let d=mb-ma; if(d < -720) d+=1440;   // virada de meia-noite
+  return d;
+}
+
+/* ============================ CÁLCULOS ============================ */
+function gcsTotal(){
+  const o=+get("gcs_o")||0, v=+get("gcs_v")||0, m=+get("gcs_m")||0;
+  return (o&&v&&m) ? o+v+m : null;
+}
+function shockIndex(){
+  const fc=+get("adm_fc"), pas=+get("adm_pas");
+  if(!fc||!pas) return null;
+  return Math.round((fc/pas)*100)/100;
+}
+function rabtPontos(){
+  let n=0;
+  if(get("rabt_penetrante")) n++;
+  if(get("efast_global")==="Positivo") n++;
+  const pas=+get("adm_pas"); if(pas && pas<=90) n++;
+  const fc=+get("adm_fc");   if(fc && fc>=120) n++;
+  return n;
+}
+function nexusPositivo(){
+  const its=["nex_dor","nex_deficit","nex_consciencia","nex_intox","nex_distrativa"];
+  return its.some(k=>get(k));
+}
+function janelaATX(){
+  const t=get("h_trauma");
+  if(!t||t==="NA") return null;
+  return difMin(t, agoraHM());   // minutos decorridos desde o trauma
+}
+
+/* ---------- RTS (Revised Trauma Score) ----------
+   Valores codificados de Champion et al. Cada componente vale 0 a 4.
+   T-RTS = soma simples (0 a 12), usado em triagem.
+   RTS ponderado = 0,9368·GCS + 0,7326·PAS + 0,2908·FR (0 a 7,8408), usado no TRISS.
+   Usar sempre a PRIMEIRA aferição, antes de qualquer reposição.            */
+function rtsCodificado(){
+  const g = gcsTotal();
+  const pasRaw = get("adm_pas"), frRaw = get("adm_fr");
+  const pas = +pasRaw, fr = +frRaw;
+  const cg = (g===null) ? null : (g>=13?4 : g>=9?3 : g>=6?2 : g>=4?1 : 0);
+  const cp = (pasRaw===undefined||pasRaw===""||isNaN(pas)) ? null
+           : (pas>89?4 : pas>=76?3 : pas>=50?2 : pas>=1?1 : 0);
+  const cr = (frRaw===undefined||frRaw===""||isNaN(fr)) ? null
+           : ((fr>=10&&fr<=29)?4 : fr>29?3 : fr>=6?2 : fr>=1?1 : 0);
+  return {cg,cp,cr};
+}
+function rtsT(){
+  const {cg,cp,cr} = rtsCodificado();
+  if(cg===null||cp===null||cr===null) return null;
+  return cg+cp+cr;
+}
+function rtsW(){
+  const {cg,cp,cr} = rtsCodificado();
+  if(cg===null||cp===null||cr===null) return null;
+  return Math.round((0.9368*cg + 0.7326*cp + 0.2908*cr)*10000)/10000;
+}
+
+/* ---------- ISS (Injury Severity Score) ----------
+   Soma dos quadrados dos três maiores AIS entre as seis regiões.
+   Qualquer região com AIS 6 (lesão não sobrevivível) força ISS = 75.   */
+function issRegioesPreenchidas(){
+  return AIS_REGIOES.filter(([k])=> get(k)!==undefined && get(k)!=="").length;
+}
+function iss(){
+  if(issRegioesPreenchidas()===0) return null;
+  const v = AIS_REGIOES.map(([k])=>{ const x=+get(k); return isNaN(x)?0:x; });
+  if(v.some(x=>x===6)) return 75;
+  const top3 = v.slice().sort((a,b)=>b-a).slice(0,3);
+  return top3.reduce((s,x)=>s+x*x,0);
+}
+
+/* ---------- TRISS (probabilidade de sobrevida) ----------
+   Ps = 1 / (1 + e^-b),  b = b0 + b1·RTS + b2·ISS + b3·índice de idade
+   Coeficientes do MTOS (Boyd, 1987). Índice de idade: 0 se < 55 anos, 1 se ≥ 55.
+   Convenção: menores de 15 anos usam os coeficientes de trauma contuso.   */
+function trissPenetrante(){
+  const idade = +get("idade");
+  if(idade && idade<15) return false;
+  const manual = get("triss_mecanismo");
+  if(manual) return manual==="Penetrante";
+  return ["FAF","FAB"].indexOf(get("mecanismo"))>=0;
+}
+function triss(){
+  const r = rtsW(), i = iss(), idade = +get("idade");
+  if(r===null || i===null || !idade) return null;
+  const pen = trissPenetrante();
+  const c = pen ? {b0:-0.6029, b1:1.1430, b2:-0.1516, b3:-2.6676}
+                : {b0:-1.2470, b1:0.9544, b2:-0.0768, b3:-1.9052};
+  const b = c.b0 + c.b1*r + c.b2*i + c.b3*(idade>=55?1:0);
+  return Math.round((1/(1+Math.exp(-b)))*1000)/10;   // em %
+}
+
+/* ============================ RENDER ============================ */
+const app = document.getElementById("app");
+
+function render(){
+  document.getElementById("foot").style.display = vista==="ficha" ? "flex" : "none";
+  document.getElementById("chipCaso").textContent =
+    vista==="ficha" ? (get("id")||"—") : (CASOS.length+" caso"+(CASOS.length===1?"":"s"));
+  app.innerHTML = vista==="lista" ? htmlLista() : htmlFicha();
+  ligar();
+  window.scrollTo(0,0);
+}
+
+/* ---------- LISTA ---------- */
+function htmlLista(){
+  let h = '<div class="wrap">';
+  h += '<div class="sec"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">'
+     + '<button class="btn p" data-a="novo" style="font-size:17px; padding:14px 22px">+ Novo código vermelho</button>'
+     + '<span class="sp" style="flex:1"></span>'
+     + '<button class="btn" data-a="export">Exportar dados</button>'
+     + '</div>'
+     + '<p class="hint" style="margin:10px 0 0">Não digite nome, prontuário ou iniciais neste aparelho. '
+     + 'A ligação entre o código do estudo e o paciente fica no caderno de triagem da sala.</p></div>';
+
+  h += '<div class="sec"><h2>Casos neste aparelho</h2>';
+  if(!CASOS.length){
+    h += '<div class="empty">Nenhum caso registrado ainda.</div>';
+  }else{
+    CASOS.forEach((c,i)=>{
+      const t = c.h_porta ? ("porta "+c.h_porta) : "sem horário de porta";
+      const dest = c.destino ? " · "+c.destino : "";
+      h += '<div class="caso"><span class="id">'+(c.id||"?")+'</span>'
+         + '<span class="meta">'+(c.data||"")+' · '+t+dest+'</span>'
+         + '<span class="badge '+(c._fechado?"closed":"open")+'">'+(c._fechado?"fechado":"em aberto")+'</span>'
+         + '<button class="btn" data-a="abrir" data-i="'+i+'">Abrir</button></div>';
+    });
+  }
+  h += '</div></div>';
+  return h;
+}
+
+/* ---------- FICHA ---------- */
+function htmlFicha(){
+  let h = '<div class="tabs">';
+  SECOES.forEach((s,i)=>{ h += '<button data-a="aba" data-i="'+i+'" class="'+(i===aba?"on":"")+'">'+s+'</button>'; });
+  h += '</div><div class="wrap">';
+  h += [secId, secHorarios, secCena, secAdmissao, secXabcde, secFast, secHemo, secSaida, secEscores, secPos][aba]();
+  h += '</div>';
+  return h;
+}
+
+/* --- componentes --- */
+function fTexto(k,label,ph,tipo){
+  return '<div class="fld"><label>'+label+'</label><input type="'+(tipo||"text")+'" data-k="'+k+'" '
+       + (tipo==="number"?'inputmode="decimal" ':'') + 'value="'+(get(k)||"")+'" placeholder="'+(ph||"")+'"></div>';
+}
+function fArea(k,label,ph){
+  return '<div class="fld"><label>'+label+'</label><textarea data-k="'+k+'" placeholder="'+(ph||"")+'">'+(get(k)||"")+'</textarea></div>';
+}
+function fRadio(k,label,vals,estilo){
+  let h='<div class="fld"><label>'+label+'</label><div class="opts">';
+  vals.forEach(v=>{
+    const on = get(k)===v;
+    h += '<button class="opt '+(on?"on":"")+' '+(estilo||"")+'" data-a="radio" data-k="'+k+'" data-v="'+v+'">'+v+'</button>';
+  });
+  h+='</div></div>';
+  return h;
+}
+function fMulti(k,label,vals){
+  let h='<div class="fld"><label>'+label+'</label><div class="opts">';
+  vals.forEach(v=>{
+    h += '<button class="opt '+(tem(k,v)?"on":"")+'" data-a="multi" data-k="'+k+'" data-v="'+v+'">'+v+'</button>';
+  });
+  h+='</div></div>';
+  return h;
+}
+function fBool(k,label,estilo){
+  const on = !!get(k);
+  return '<button class="opt '+(on?"on "+(estilo||""):"")+'" data-a="bool" data-k="'+k+'">'+label+'</button>';
+}
+
+/* --- 0 · identificação --- */
+function secId(){
+  return '<div class="sec"><h2>Identificação</h2>'
+   + '<div class="grid g4">'
+   + fTexto("id","Código do estudo")
+   + fTexto("data","Data")
+   + fTexto("idade","Idade","anos","number")
+   + fRadio("sexo","Sexo",["F","M"])
+   + '</div>'
+   + '<div class="grid g2" style="margin-top:10px">'
+   + fRadio("preenchido_por","Quem está preenchendo",["Interno","R1","R2","R3"])
+   + fRadio("ativacao","Ativação do código vermelho por",["APH","Triagem","Staff"])
+   + '</div>'
+   + '<p class="hint" style="margin-top:12px">Sem nome, sem prontuário, sem iniciais. Só o código do estudo.</p>'
+   + '</div>';
+}
+
+/* --- 1 · horários --- */
+function secHorarios(){
+  let h='<div class="sec"><h2>Relógio do atendimento</h2>'
+   + '<p class="hint" style="margin:-4px 0 12px">Toque em AGORA no instante em que a coisa acontece. '
+   + 'N/A marca o que não se aplica — diferente de deixar vazio.</p><div class="clock">';
+  HORARIOS.forEach(([k,rot])=>{
+    const v = get(k);
+    const na = v==="NA";
+    h += '<div class="tcard '+(v&&!na?"set":"")+' '+(na?"na":"")+'">'
+       + '<div class="tl">'+rot+'</div>'
+       + '<div class="tv '+(v?"":"off")+'">'+(na?"N/A":(v||"--:--"))+'</div>'
+       + '<div class="trow">'
+       + '<button class="tnow" data-a="agora" data-k="'+k+'">AGORA</button>'
+       + '<button class="tsm" data-a="editar" data-k="'+k+'">✎</button>'
+       + '<button class="tsm" data-a="na" data-k="'+k+'">N/A</button>'
+       + '</div></div>';
+  });
+  h+='</div>';
+
+  // intervalos calculados
+  const pares = [["h_porta","h_tc","Porta → TC"],["h_porta","h_transf","Porta → 1ª transfusão"],
+                 ["h_porta","h_cc","Porta → centro cirúrgico"],["h_porta","h_saida","Tempo na sala"],
+                 ["h_trauma","h_atx","Trauma → tranexâmico"]];
+  let its="";
+  pares.forEach(([a,b,rot])=>{
+    const d = difMin(get(a),get(b));
+    if(d!==null && d>=0) its += '<div class="opt" style="pointer-events:none">'+rot+': <b style="margin-left:6px">'+d+' min</b></div>';
+  });
+  if(its) h += '<div style="margin-top:14px"><label style="font-size:13px; font-weight:600; color:var(--mut)">Intervalos</label><div class="opts" style="margin-top:6px">'+its+'</div></div>';
+
+  const jan = janelaATX();
+  if(jan!==null && !get("h_atx")){
+    if(jan>180) h += '<div class="alert a">Janela do ácido tranexâmico ultrapassada — '+jan+' min desde o trauma. Registre o motivo em Hemostasia.</div>';
+    else h += '<div class="alert g">Dentro da janela do ácido tranexâmico — '+jan+' min desde o trauma ('+(180-jan)+' min restantes).</div>';
+  }
+  h+='</div>';
+  return h;
+}
+
+/* --- 2 · cena --- */
+function secCena(){
+  return '<div class="sec"><h2>Cena e transporte</h2>'
+   + fRadio("mecanismo","Mecanismo",["Colisão auto","Moto","Atropelamento","Queda","FAF","FAB","Agressão","Outro"])
+   + (get("mecanismo")==="Queda" ? '<div class="grid g4" style="margin-top:8px">'+fTexto("queda_altura","Altura da queda (m)","","number")+'</div>' : "")
+   + (get("mecanismo")==="Outro" ? '<div style="margin-top:8px">'+fTexto("mecanismo_outro","Qual mecanismo")+'</div>' : "")
+   + '<div style="margin-top:10px">'+fMulti("agravantes","Agravantes",["Ejeção","Óbito no local","Encarceramento","Sem cinto/capacete","Alta velocidade","Nenhum"])+'</div>'
+   + '<div style="margin-top:10px">'+fRadio("transporte","Transporte",["SAMU","Bombeiros","GRAU","Próprios meios","Outro serviço"])+'</div>'
+   + '</div>'
+   + '<div class="sec"><h2>Sinais vitais na cena</h2><div class="grid g6">'
+   + fTexto("cena_pas","PAS","","number") + fTexto("cena_pad","PAD","","number")
+   + fTexto("cena_fc","FC","","number") + fTexto("cena_fr","FR","","number")
+   + fTexto("cena_spo2","SpO₂ %","","number") + fTexto("cena_gcs","GCS","","number")
+   + '</div>'
+   + '<div style="margin-top:10px">'+fMulti("aph_fez","O APH realizou",["Colar cervical","Prancha","Torniquete","Volume","Ácido tranexâmico","IOT","Hemocomponente","Nada"])+'</div>'
+   + (tem("aph_fez","Volume") ? '<div class="grid g4" style="margin-top:8px">'+fTexto("aph_volume","Volume infundido no APH (mL)","","number")+'</div>' : "")
+   + '</div>'
+   + '<div class="sec"><h2>AMBO</h2><div class="grid g2">'
+   + fRadio("alergia","Alergia",["Nega","Sim","Não avaliável"])
+   + fRadio("anticoag","Anticoagulante ou antiagregante",["Não","Sim","Não avaliável"])
+   + '</div>'
+   + (get("anticoag")==="Sim" ? '<div style="margin-top:8px">'+fTexto("anticoag_qual","Qual droga e última dose")+'</div>' : "")
+   + '<div style="margin-top:10px">'+fTexto("comorbidades","Comorbidades relevantes","cardiopatia, hepatopatia, doença renal…")+'</div>'
+   + '<div style="margin-top:10px">'+fMulti("marcadores","Marcadores",["Etilismo ou drogas","Recusa transfusão","Gestante","Cirurgia neurológica prévia"])+'</div>'
+   + '</div>';
+}
+
+/* --- 3 · admissão --- */
+function calcAdmHTML(){
+  const si = shockIndex(), g = gcsTotal();
+  let h = "";
+  if(g!==null) h += '<div class="alert '+(g<=8?"r":(g<=12?"a":"g"))+'">Glasgow '+g+'</div>';
+  if(si!==null) h += '<div class="alert '+(si>=1?"r":"g")+'">Shock Index '+si.toFixed(2)+(si>=1?" — perfusão comprometida, considere critérios de transfusão maciça":"")+'</div>';
+  return h;
+}
+function secAdmissao(){
+  let h = '<div class="sec"><h2>Sinais vitais na admissão</h2>'
+   + '<p class="hint" style="margin:-4px 0 12px">Primeira aferição, antes do volume. Não é o valor estabilizado.</p>'
+   + '<div class="grid g4">'
+   + fTexto("adm_pas","PA sistólica","","number") + fTexto("adm_pad","PA diastólica","","number")
+   + fTexto("adm_fc","FC","","number") + fTexto("adm_fr","FR","","number")
+   + fTexto("adm_spo2","SpO₂ %","","number") + fTexto("adm_tax","Temperatura °C","","number")
+   + fTexto("adm_tec","TEC (s)","","number") + fTexto("adm_dextro","Dextro","","number")
+   + '</div>'
+   + '<div class="grid g3" style="margin-top:10px">'
+   + fRadio("gcs_o","Abertura ocular (O)",["1","2","3","4"])
+   + fRadio("gcs_v","Resposta verbal (V)",["1","2","3","4","5"])
+   + fRadio("gcs_m","Resposta motora (M)",["1","2","3","4","5","6"])
+   + '</div>'
+   + '<div id="calc-adm">'+calcAdmHTML()+'</div>'
+   + '</div>';
+  return h;
+}
+
+/* --- 4 · XABCDE --- */
+function secXabcde(){
+  let h='<div class="sec"><h2>X-ABCDE — registro por exceção</h2>'
+   + '<p class="hint" style="margin:-4px 0 12px">Marque NORMAL quando a frase descreve o paciente. Escreva só o que fugiu do padrão.</p>';
+  XABCDE.forEach(([L,k,frase,intervs])=>{
+    const norm = get(k+"_normal");
+    h += '<div class="xrow">'
+       + '<div class="xhead"><div class="xltr">'+L+'</div>'
+       + '<div class="xnorm">'+frase+'</div>'
+       + '<button class="btn-norm '+(norm?"on":"")+'" data-a="bool" data-k="'+k+'_normal">'+(norm?"NORMAL ✓":"NORMAL")+'</button>'
+       + '</div>';
+    if(!norm) h += fArea(k+"_alterado","O que está alterado","descreva objetivamente");
+    h += '<div class="opts" style="margin-top:8px">';
+    intervs.forEach(v=>{ h += '<button class="opt '+(tem(k+"_int",v)?"on":"")+'" data-a="multi" data-k="'+k+'_int" data-v="'+v+'">'+v+'</button>'; });
+    h += '</div></div>';
+  });
+  h += '<div style="margin-top:6px">'
+    + fRadio("resposta_volume","Resposta a volume",["Não precisou","Respondedor","Transitório","Não respondedor"])
+    + '</div>'
+    + '<div class="grid g3" style="margin-top:10px">'
+    + fTexto("cristaloide_sala","Cristaloide na sala (mL)","","number")
+    + fTexto("be","BE","","number") + fTexto("lactato","Lactato","","number")
+    + '</div></div>';
+  return h;
+}
+
+/* --- 5 · FAST e NEXUS --- */
+function secFast(){
+  const janelas = [["fast_morrison","Morrison"],["fast_espleno","Esplenorrenal"],
+                   ["fast_pelvica","Pélvica"],["fast_subxifoide","Subxifoide"]];
+  let h='<div class="sec"><h2>E-FAST</h2><div class="grid g4">';
+  janelas.forEach(([k,rot])=>{
+    h += '<div class="fld"><label>'+rot+'</label><div class="opts">'
+       + ['+','−','NR'].map(v=>'<button class="opt '+(get(k)===v?"on "+(v==="+"?"warn":""):"")+'" data-a="radio" data-k="'+k+'" data-v="'+v+'" style="flex:1; justify-content:center">'+v+'</button>').join("")
+       + '</div></div>';
+  });
+  h += '</div>';
+  h += '<div style="margin-top:12px">'+fRadio("efast_global","Resultado global",["Negativo","Positivo","Não realizado"])+'</div>';
+  if(get("efast_global")==="Positivo") h += '<div style="margin-top:8px">'+fTexto("efast_achado","Achado","líquido livre em…")+'</div>';
+  h += '<p class="hint" style="margin-top:8px">Janela que não deu para ver é NR, nunca negativa.</p></div>';
+
+  const pos = nexusPositivo();
+  h += '<div class="sec"><h2>Coluna cervical — NEXUS</h2>'
+   + '<p class="hint" style="margin:-4px 0 10px">Marque o que ESTÁ presente.</p><div class="opts">'
+   + fBool("nex_dor","Dor cervical posterior","warn")
+   + fBool("nex_deficit","Déficit neurológico focal","warn")
+   + fBool("nex_consciencia","Alteração da consciência","warn")
+   + fBool("nex_intox","Intoxicação","warn")
+   + fBool("nex_distrativa","Lesão distrativa","warn")
+   + '</div>'
+   + '<div class="alert '+(pos?"r":"g")+'">'
+   + (pos ? "NEXUS alterado — mantenho o colar e solicito TC de coluna cervical."
+          : "Nenhum critério presente — coluna cervical liberada clinicamente, posso retirar o colar sem imagem.")
+   + '</div></div>';
+  return h;
+}
+
+/* --- 6 · hemostasia --- */
+function secHemo(){
+  const r = rabtPontos();
+  let h='<div class="sec"><h2>Ácido tranexâmico</h2>'
+   + fRadio("atx","Situação",["Feito","Não feito"])
+   + (get("atx")==="Não feito" ? '<div style="margin-top:10px">'
+        + fRadio("atx_motivo","Motivo",["Mais de 3 h do trauma","Sem sangramento","Contraindicação","Outro"])+'</div>' : "")
+   + '<div class="opts" style="margin-top:10px">'
+   + fBool("atx_manutencao","Manutenção iniciada","good")
+   + fBool("calcio","Cálcio reposto","good")
+   + '</div></div>';
+
+  h += '<div class="sec"><h2>RABT — gatilho de transfusão maciça</h2><div class="opts">'
+   + fBool("rabt_penetrante","Mecanismo penetrante","warn")
+   + '<button class="opt '+(get("efast_global")==="Positivo"?"on warn":"")+'" style="pointer-events:none; opacity:.9">FAST positivo'+(get("efast_global")==="Positivo"?" ✓":"")+'</button>'
+   + '<button class="opt '+((+get("adm_pas")&&+get("adm_pas")<=90)?"on warn":"")+'" style="pointer-events:none; opacity:.9">PAS ≤ 90'+((+get("adm_pas")&&+get("adm_pas")<=90)?" ✓":"")+'</button>'
+   + '<button class="opt '+((+get("adm_fc")&&+get("adm_fc")>=120)?"on warn":"")+'" style="pointer-events:none; opacity:.9">FC ≥ 120'+((+get("adm_fc")&&+get("adm_fc")>=120)?" ✓":"")+'</button>'
+   + '</div>'
+   + '<div class="alert '+(r>=2?"r":"g")+'">RABT '+r+' ponto'+(r===1?"":"s")+(r>=2?" — critério atingido, acionar protocolo de transfusão maciça.":" — abaixo do gatilho.")+'</div>'
+   + '<p class="hint">FAST, PAS e FC vêm automaticamente dos blocos anteriores.</p></div>';
+
+  h += '<div class="sec"><h2>Transfusão até a saída da sala</h2>'
+   + fRadio("ptm","Protocolo de transfusão maciça",["Acionado","Não indicado"])
+   + '<div class="grid g4" style="margin-top:10px">'
+   + fTexto("t_ch","Hemácias (U)","","number") + fTexto("t_pfc","Plasma (U)","","number")
+   + fTexto("t_plq","Plaquetas (U)","","number") + fTexto("t_st","Sangue total (U)","","number")
+   + '</div>'
+   + '<div class="grid g2" style="margin-top:10px">'
+   + fTexto("t_ciclos","Ciclos de PTM","","number")
+   + fTexto("t_cristaloide","Cristaloide total (mL)","","number")
+   + '</div></div>';
+  return h;
+}
+
+/* --- 7 · saída --- */
+function secSaida(){
+  return '<div class="sec"><h2>Saída da sala</h2>'
+   + fRadio("destino","Destino imediato",["Centro cirúrgico","UTI","Enfermaria","Observação","Alta do PS","Óbito na sala"])
+   + '<div style="margin-top:12px">'+fRadio("conduta","Conduta",["Tratamento conservador","Cirurgia"])+'</div>'
+   + (get("conduta")==="Cirurgia" ? '<div style="margin-top:10px">'
+       + fMulti("procedimento","Procedimento",["Laparotomia","Damage control","Toracotomia","Toracostomia isolada","Fixador externo","Angioembolização","Craniotomia","Outro"])+'</div>' : "")
+   + '</div>'
+   + '<div class="sec"><h2>Hipótese diagnóstica</h2>'
+   + fArea("hd","Evento-âncora e eixos de lesão","Colisão motociclística em alta velocidade\n> Choque hemorrágico grau III\n> Trauma abdominal fechado com hemoperitônio")
+   + '</div>';
+}
+
+/* --- 8 · escores --- */
+function secEscores(){
+  const si = shockIndex(), rb = rabtPontos();
+  const {cg,cp,cr} = rtsCodificado();
+  const rt = rtsT(), rw = rtsW(), is = iss(), ps = triss();
+  const nreg = issRegioesPreenchidas();
+  const falta = [];
+  if(gcsTotal()===null) falta.push("Glasgow (O, V e M em Admissão)");
+  if(cp===null) falta.push("PA sistólica de admissão");
+  if(cr===null) falta.push("frequência respiratória de admissão");
+
+  let h = '<div class="sec"><h2>Na sala — calculados automaticamente</h2>';
+
+  h += '<div class="grid g2">';
+  h += '<div class="score '+(si===null?"":(si>=1?"r":"g"))+'"><div class="sl">Shock Index</div>'
+     + '<div class="sv">'+(si===null?"—":si.toFixed(2))+'</div>'
+     + '<div class="sd">'+(si===null?"Precisa de FC e PA sistólica"
+        : (si>=1?"≥ 1,0 — perfusão comprometida":"Abaixo de 1,0"))+'</div></div>';
+  h += '<div class="score '+(rb>=2?"r":"g")+'"><div class="sl">RABT</div>'
+     + '<div class="sv">'+rb+' / 4</div>'
+     + '<div class="sd">'+(rb>=2?"Critério atingido — acionar transfusão maciça":"Abaixo do gatilho")+'</div></div>';
+  h += '</div>';
+
+  h += '<div class="score '+(rt===null?"":(rt<=10?"r":"g"))+'" style="margin-top:10px">'
+     + '<div class="sl">RTS — Revised Trauma Score</div>'
+     + '<div class="sv">'+(rt===null?"—":rt+" / 12")+'<span style="font-size:15px; font-weight:600; color:var(--mut); margin-left:12px">ponderado '+(rw===null?"—":rw.toFixed(4))+' / 7,8408</span></div>'
+     + '<div class="sd">'+(rt===null? "Faltam dados: "+falta.join(", ")
+        : "Glasgow "+cg+" · PA sistólica "+cp+" · frequência respiratória "+cr
+          + (rt<=10?" — RTS ≤ 10 costuma indicar necessidade de centro de trauma":""))+'</div></div>';
+
+  h += '<p class="hint" style="margin-top:8px">O RTS usa a <b>primeira</b> aferição, antes de qualquer reposição volêmica. '
+     + 'O valor ponderado alimenta o TRISS.</p></div>';
+
+  /* ----- ISS ----- */
+  h += '<div class="sec"><h2>ISS — preencher depois, com laudo definitivo</h2>'
+     + '<p class="hint" style="margin:-4px 0 10px">AIS de 0 a 6 em cada região. '
+     + 'O ISS soma os quadrados dos três maiores. Qualquer região com AIS 6 força ISS 75.</p>';
+  AIS_REGIOES.forEach(([k,rot])=>{
+    h += '<div class="fld" style="margin-bottom:8px"><label>'+rot+'</label><div class="opts">'
+      + [0,1,2,3,4,5,6].map(n=>'<button class="opt '+(String(get(k))===String(n)?"on "+(n>=5?"warn":""):"")
+        +'" data-a="radio" data-k="'+k+'" data-v="'+n+'" style="min-width:52px; justify-content:center">'+n+'</button>').join("")
+      + '</div></div>';
+  });
+  h += '<div class="score '+(is===null?"":(is>=16?"r":"g"))+'"><div class="sl">ISS</div>'
+     + '<div class="sv">'+(is===null?"—":is)+'</div>'
+     + '<div class="sd">'+(is===null? "Nenhuma região pontuada ainda"
+        : (nreg<6 ? "Atenção: apenas "+nreg+" de 6 regiões pontuadas — as demais estão contando como zero. "
+                  : "")
+          + (is>=16?"ISS ≥ 16 — politrauma grave":"ISS < 16"))+'</div></div></div>';
+
+  /* ----- TRISS ----- */
+  const pen = trissPenetrante();
+  const idade = +get("idade");
+  h += '<div class="sec"><h2>TRISS — probabilidade de sobrevida</h2>'
+     + fRadio("triss_mecanismo","Coeficientes",["Contuso","Penetrante"])
+     + '<p class="hint" style="margin:6px 0 10px">Se não escolher, o app deduz do mecanismo registrado em Cena. '
+     + 'Menores de 15 anos usam coeficientes de trauma contuso, por convenção.</p>'
+     + '<div class="score '+(ps===null?"":(ps>=90?"g":(ps>=50?"a":"r")))+'">'
+     + '<div class="sl">Ps — TRISS</div>'
+     + '<div class="sv">'+(ps===null?"—":ps.toFixed(1)+"%")+'</div>'
+     + '<div class="sd">'+(ps===null
+        ? "Precisa de RTS completo, ISS e idade"
+        : "Coeficientes "+(pen?"penetrante":"contuso")+" · RTS ponderado "+rw.toFixed(4)
+          +" · ISS "+is+" · idade "+idade+" anos (índice "+(idade>=55?1:0)+")")+'</div></div>'
+     + '<div class="alert a" style="margin-top:12px">Os coeficientes são os do MTOS, publicados por Boyd em 1987, '
+       + 'e continuam sendo a referência clássica — mas superestimam mortalidade em casuísticas atuais. '
+       + 'Use o TRISS como descritor de gravidade da amostra, não como prognóstico individual à beira do leito.</div>'
+     + '</div>';
+  return h;
+}
+
+/* --- 9 · pós --- */
+function secPos(){
+  let h = '<div class="sec"><h2>Tomografia</h2>'
+   + fRadio("tc","Realizada",["Sim","Não"]) ;
+  if(get("tc")==="Não") h += '<div style="margin-top:10px">'+fRadio("tc_motivo","Motivo",["Instabilidade ou cirurgia imediata","Não indicada","Óbito","Aparelho indisponível"])+'</div>';
+  if(get("tc")==="Sim"){
+    h += '<div class="grid g2" style="margin-top:10px">'
+      + fTexto("tc_solicitada","Hora da solicitação","HH:MM")
+      + fRadio("tc_protocolo","Protocolo",["Whole-body","Segmentar"])
+      + '</div>'
+      + '<div style="margin-top:10px">'+fArea("tc_achados","Achados principais")+'</div>'
+      + '<div class="grid g2" style="margin-top:10px">'
+      + fTexto("tc_orgao","Lesão de órgão sólido") + fTexto("tc_aast","Grau AAST","","number")
+      + '</div>';
+  }
+  h += '</div>';
+
+  h += '<div class="sec"><h2>Cirurgia e desfecho</h2><div class="grid g2">'
+   + fTexto("cir_procedimento","Procedimento realizado")
+   + fTexto("cir_incisao","Hora da incisão","HH:MM")
+   + '</div>'
+   + '<div style="margin-top:10px">'+fTexto("cir_achado","Achado operatório principal")+'</div>'
+   + '<div style="margin-top:12px">'+fRadio("desfecho","Desfecho",["Alta vivo","Óbito em menos de 24 h","Óbito intra-hospitalar"])+'</div>'
+   + '<div class="grid g3" style="margin-top:10px">'
+   + fTexto("dias_uti","Dias de UTI","","number") + fTexto("dias_vm","Dias de VM","","number")
+   + fTexto("dias_internacao","Internação total (dias)","","number")
+   + '</div>'
+   + '<div style="margin-top:10px">'+fMulti("complicacoes","Complicações",["Sepse","Insuficiência renal","SDRA","Reoperação","TEV","Infecção de sítio cirúrgico","Nenhuma"])+'</div>'
+   + '</div>';
+
+  h += '<div class="sec"><h2>Auditoria de registro</h2>'
+   + fArea("audit_inexistente","Campos vazios por dado inexistente","hora do trauma desconhecida, paciente sem acompanhante…")
+   + '<div style="margin-top:10px">'+fArea("audit_tempo","Campos vazios por falta de tempo","não avalia ninguém — identifica o que não cabe na sala")+'</div>'
+   + '<div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap">'
+   + '<button class="btn '+(get("_fechado")?"":"g")+'" data-a="fechar">'+(get("_fechado")?"Reabrir caso":"Fechar caso")+'</button>'
+   + '<button class="btn" data-a="export">Exportar dados</button>'
+   + '</div></div>';
+  return h;
+}
+
+/* ============================ EVENTOS ============================ */
+function ligar(){
+  app.querySelectorAll("[data-a]").forEach(el=>{
+    el.addEventListener("click", ev=>{
+      const a = el.dataset.a, k = el.dataset.k, v = el.dataset.v, i = el.dataset.i;
+      if(a==="novo") return novoCaso();
+      if(a==="abrir"){ atual = +i; aba=0; vista="ficha"; return render(); }
+      if(a==="aba"){ aba = +i; return render(); }
+      if(a==="radio"){ set(k, get(k)===v ? undefined : v); return render(); }
+      if(a==="multi"){ toggleMulti(k,v); return render(); }
+      if(a==="bool"){ set(k, get(k) ? undefined : true); return render(); }
+      if(a==="agora"){ set(k, agoraHM()); return render(); }
+      if(a==="na"){ set(k, get(k)==="NA" ? undefined : "NA"); return render(); }
+      if(a==="editar"){
+        const atualv = (get(k)&&get(k)!=="NA") ? get(k) : "";
+        const r = prompt("Horário no formato HH:MM", atualv);
+        if(r!==null){
+          const t = r.trim();
+          if(t==="") set(k, undefined);
+          else if(/^\d{1,2}:\d{2}$/.test(t)) set(k, dois(+t.split(":")[0])+":"+t.split(":")[1]);
+          else alert("Formato inválido. Use HH:MM, por exemplo 22:05.");
+        }
+        return render();
+      }
+      if(a==="fechar"){ set("_fechado", get("_fechado") ? undefined : true); return render(); }
+      if(a==="export") return exportar();
+    });
+  });
+  app.querySelectorAll("[data-k]").forEach(el=>{
+    if(el.tagName==="INPUT" || el.tagName==="TEXTAREA"){
+      el.addEventListener("input", ()=>{
+        set(el.dataset.k, el.value);
+        /* atualiza só o bloco de cálculo — nunca redesenha o formulário
+           enquanto alguém digita, sob pena de perder o valor e fechar o teclado */
+        const alvo = document.getElementById("calc-adm");
+        if(alvo && (el.dataset.k==="adm_pas" || el.dataset.k==="adm_fc")) alvo.innerHTML = calcAdmHTML();
+      });
+    }
+  });
+}
+
+document.getElementById("btnLista").addEventListener("click", ()=>{ vista="lista"; render(); });
+document.getElementById("btnPrev").addEventListener("click", ()=>{ if(aba>0){aba--; render();} });
+document.getElementById("btnNext").addEventListener("click", ()=>{ if(aba<SECOES.length-1){aba++; render();} else {vista="lista"; render();} });
+
+/* ============================ EXPORTAÇÃO ============================ */
+function colunas(){
+  const set0 = new Set();
+  CASOS.forEach(c=>Object.keys(c).forEach(k=>set0.add(k)));
+  const fixas = ["id","data","idade","sexo","preenchido_por","ativacao"].concat(HORARIOS.map(x=>x[0]));
+  const resto = [...set0].filter(k=>fixas.indexOf(k)<0).sort();
+  return fixas.filter(k=>set0.has(k)||true).concat(resto);
+}
+function csv(){
+  const cols = colunas();
+  const der = ["_gcs_total","_shock_index","_rabt","_rts_t","_rts_ponderado","_iss","_triss_ps","_triss_coef",
+               "_porta_tc_min","_porta_transf_min","_porta_cc_min","_tempo_sala_min","_trauma_atx_min"];
+  const head = cols.concat(der).join(";");
+  const linhas = CASOS.map(c=>{
+    const salvo = atual, tmp = CASOS.indexOf(c);
+    atual = tmp;
+    const d = {
+      _gcs_total: gcsTotal() ?? "",
+      _shock_index: shockIndex() ?? "",
+      _rabt: rabtPontos(),
+      _rts_t: rtsT() ?? "",
+      _rts_ponderado: rtsW() ?? "",
+      _iss: iss() ?? "",
+      _triss_ps: triss() ?? "",
+      _triss_coef: (rtsW()!==null && iss()!==null) ? (trissPenetrante()?"penetrante":"contuso") : "",
+      _porta_tc_min: difMin(c.h_porta,c.h_tc) ?? "",
+      _porta_transf_min: difMin(c.h_porta,c.h_transf) ?? "",
+      _porta_cc_min: difMin(c.h_porta,c.h_cc) ?? "",
+      _tempo_sala_min: difMin(c.h_porta,c.h_saida) ?? "",
+      _trauma_atx_min: difMin(c.h_trauma,c.h_atx) ?? ""
+    };
+    atual = salvo;
+    const cel = k=>{
+      let v = (k in d) ? d[k] : c[k];
+      if(v===undefined||v===null) v="";
+      if(Array.isArray(v)) v = v.join(" | ");
+      if(v===true) v="sim";
+      v = String(v).replace(/"/g,'""').replace(/\r?\n/g," / ");
+      return /[;"\n]/.test(v) ? '"'+v+'"' : v;
+    };
+    return cols.map(cel).concat(der.map(cel)).join(";");
+  });
+  return "﻿" + [head].concat(linhas).join("\r\n");
+}
+function exportar(){
+  document.getElementById("csvOut").textContent = csv();
+  document.getElementById("dlgExport").showModal();
+}
+function baixar(txt, nome, tipo){
+  const b = new Blob([txt], {type:tipo});
+  const u = URL.createObjectURL(b);
+  const a = document.createElement("a");
+  a.href=u; a.download=nome; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(u); a.remove(); }, 1500);
+}
+document.getElementById("btnCloseExp").addEventListener("click", ()=> document.getElementById("dlgExport").close());
+document.getElementById("btnDl").addEventListener("click", ()=> baixar(csv(), "ficha_trauma_"+hojeISO()+".csv", "text/csv;charset=utf-8"));
+document.getElementById("btnDlJson").addEventListener("click", ()=> baixar(JSON.stringify(CASOS,null,2), "backup_trauma_"+hojeISO()+".json", "application/json"));
+document.getElementById("btnCopy").addEventListener("click", async ()=>{
+  const t = csv();
+  try{ await navigator.clipboard.writeText(t); alert("CSV copiado. Cole numa planilha."); }
+  catch(e){
+    const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta);
+    ta.select(); try{document.execCommand("copy"); alert("CSV copiado.");}catch(_){alert("Não foi possível copiar. Selecione o texto manualmente.");}
+    ta.remove();
+  }
+});
+
+/* ============================ INÍCIO ============================ */
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+carregar();
+render();
+</script>
+</body>
+</html>

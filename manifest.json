@@ -1,0 +1,19 @@
+{
+  "name": "Ficha de Trauma — PS Cirurgia Geral HSP",
+  "short_name": "Ficha Trauma",
+  "description": "Registro estruturado do atendimento inicial ao politraumatizado. Funciona offline.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#eef0f3",
+  "theme_color": "#12253d",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
