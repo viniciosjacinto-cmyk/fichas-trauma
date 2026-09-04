@@ -32,6 +32,10 @@ para coleta real.
 
 - **Acesso Guiado** (Ajustes → Acessibilidade → Acesso Guiado): trava o aparelho
   no app. Impede que alguém saia da ficha no meio do atendimento.
+- **Data e Hora em ajuste automático** (Ajustes → Geral → Data e Hora). Com o app
+  em uso, o relógio do iPad é o relógio oficial do atendimento — quem anotar no
+  papel de backup deve copiar a hora do iPad, nunca do relógio de parede ou do
+  próprio celular. Misturar fontes de horário corrompe todos os intervalos do estudo.
 - **Bloqueio automático: Nunca** (Ajustes → Tela e Brilho). Tela apagando no meio
   da reanimação é o jeito mais rápido de matar a adesão.
 - Capa que aguente álcool.
@@ -63,7 +67,9 @@ Imediato, sem digitar nada além dos sinais vitais:
 
 - Glasgow total, a partir de O + V + M
 - **Shock Index**, com alerta quando ≥ 1,0
-- **RABT**, puxando FAST, PAS e FC dos blocos anteriores, com alerta em ≥ 2
+- **RABT** — mecanismo penetrante, FAST positivo, Shock Index > 1,0 e fratura de
+  pelve; FAST e Shock Index vêm sozinhos dos blocos anteriores, com alerta em ≥ 2.
+  (Não confundir com o ABC score, que usa PAS ≤ 90 e FC ≥ 120 no lugar do Shock Index.)
 - **RTS**, nas duas formas: T-RTS de triagem (0 a 12) e RTS ponderado (0 a 7,8408)
 - Resultado do NEXUS e a conduta correspondente sobre o colar
 - Janela do ácido tranexâmico: minutos desde o trauma e quanto resta

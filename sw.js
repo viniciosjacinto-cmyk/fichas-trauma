@@ -1,6 +1,6 @@
 /* Service worker — cache local para funcionamento offline.
    Ao publicar uma versão nova do app, troque o número em CACHE. */
-const CACHE = "ficha-trauma-v2";
+const CACHE = "ficha-trauma-v4";
 const ARQUIVOS = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", e => {

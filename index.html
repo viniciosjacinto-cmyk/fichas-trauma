@@ -242,9 +242,14 @@ function hojeISO(){ const d=new Date(); return d.getFullYear()+"-"+dois(d.getMon
 function hojeBR(){ const d=new Date(); return dois(d.getDate())+"/"+dois(d.getMonth()+1)+"/"+d.getFullYear(); }
 
 function proximoId(){
+  /* maior sequencial existente + 1 — contar casos duplicaria IDs após edição ou exclusão */
   const ano = new Date().getFullYear();
-  const n = CASOS.filter(c=>String(c.id||"").includes("TR-"+ano)).length + 1;
-  return "TR-"+ano+"-"+String(n).padStart(4,"0");
+  let max = 0;
+  CASOS.forEach(c=>{
+    const m = String(c.id||"").match(new RegExp("^TR-"+ano+"-(\\d+)$"));
+    if(m) max = Math.max(max, +m[1]);
+  });
+  return "TR-"+ano+"-"+String(max+1).padStart(4,"0");
 }
 function novoCaso(){
   const c = { id: proximoId(), data: hojeBR(), _criado: new Date().toISOString(), _fechado:false };
@@ -282,12 +287,16 @@ function shockIndex(){
   if(!fc||!pas) return null;
   return Math.round((fc/pas)*100)/100;
 }
+/* ---------- RABT (Revised Assessment of Bleeding and Transfusion) ----------
+   4 critérios: mecanismo penetrante · FAST positivo · Shock Index > 1,0 ·
+   fratura de pelve (suspeita ou confirmada). RABT ≥ 2 → acionar PTM.
+   Não confundir com o ABC score, que usa PAS ≤ 90 e FC ≥ 120 no lugar do SI. */
 function rabtPontos(){
   let n=0;
   if(get("rabt_penetrante")) n++;
   if(get("efast_global")==="Positivo") n++;
-  const pas=+get("adm_pas"); if(pas && pas<=90) n++;
-  const fc=+get("adm_fc");   if(fc && fc>=120) n++;
+  const si=shockIndex(); if(si!==null && si>1) n++;
+  if(get("rabt_pelve")) n++;
   return n;
 }
 function nexusPositivo(){
@@ -297,7 +306,10 @@ function nexusPositivo(){
 function janelaATX(){
   const t=get("h_trauma");
   if(!t||t==="NA") return null;
-  return difMin(t, agoraHM());   // minutos decorridos desde o trauma
+  let d = difMin(t, agoraHM());  // minutos decorridos desde o trauma
+  if(d===null) return null;
+  if(d<0) d += 1440;             // consulta no dia seguinte: não reportar minutos negativos
+  return d;
 }
 
 /* ---------- RTS (Revised Trauma Score) ----------
@@ -395,7 +407,8 @@ function htmlLista(){
       h += '<div class="caso"><span class="id">'+(c.id||"?")+'</span>'
          + '<span class="meta">'+(c.data||"")+' · '+t+dest+'</span>'
          + '<span class="badge '+(c._fechado?"closed":"open")+'">'+(c._fechado?"fechado":"em aberto")+'</span>'
-         + '<button class="btn" data-a="abrir" data-i="'+i+'">Abrir</button></div>';
+         + '<button class="btn" data-a="abrir" data-i="'+i+'">Abrir</button>'
+         + '<button class="btn" data-a="apagar" data-i="'+i+'" style="color:#c62828">Apagar</button></div>';
     });
   }
   h += '</div></div>';
@@ -621,14 +634,18 @@ function secHemo(){
    + fBool("calcio","Cálcio reposto","good")
    + '</div></div>';
 
+  const siH = shockIndex();
+  const siPos = siH!==null && siH>1;
   h += '<div class="sec"><h2>RABT — gatilho de transfusão maciça</h2><div class="opts">'
    + fBool("rabt_penetrante","Mecanismo penetrante","warn")
    + '<button class="opt '+(get("efast_global")==="Positivo"?"on warn":"")+'" style="pointer-events:none; opacity:.9">FAST positivo'+(get("efast_global")==="Positivo"?" ✓":"")+'</button>'
-   + '<button class="opt '+((+get("adm_pas")&&+get("adm_pas")<=90)?"on warn":"")+'" style="pointer-events:none; opacity:.9">PAS ≤ 90'+((+get("adm_pas")&&+get("adm_pas")<=90)?" ✓":"")+'</button>'
-   + '<button class="opt '+((+get("adm_fc")&&+get("adm_fc")>=120)?"on warn":"")+'" style="pointer-events:none; opacity:.9">FC ≥ 120'+((+get("adm_fc")&&+get("adm_fc")>=120)?" ✓":"")+'</button>'
+   + '<button class="opt '+(siPos?"on warn":"")+'" style="pointer-events:none; opacity:.9">Shock Index &gt; 1,0'
+     +(siH!==null?" ("+siH.toFixed(2)+")":"")+(siPos?" ✓":"")+'</button>'
+   + fBool("rabt_pelve","Fratura de pelve (suspeita ou confirmada)","warn")
    + '</div>'
    + '<div class="alert '+(r>=2?"r":"g")+'">RABT '+r+' ponto'+(r===1?"":"s")+(r>=2?" — critério atingido, acionar protocolo de transfusão maciça.":" — abaixo do gatilho.")+'</div>'
-   + '<p class="hint">FAST, PAS e FC vêm automaticamente dos blocos anteriores.</p></div>';
+   + '<p class="hint">FAST e Shock Index vêm automaticamente dos blocos anteriores. '
+   + 'Penetrante e fratura de pelve são marcados aqui.</p></div>';
 
   h += '<div class="sec"><h2>Transfusão até a saída da sala</h2>'
    + fRadio("ptm","Protocolo de transfusão maciça",["Acionado","Não indicado"])
@@ -646,7 +663,7 @@ function secHemo(){
 /* --- 7 · saída --- */
 function secSaida(){
   return '<div class="sec"><h2>Saída da sala</h2>'
-   + fRadio("destino","Destino imediato",["Centro cirúrgico","UTI","Enfermaria","Observação","Alta do PS","Óbito na sala"])
+   + fRadio("destino","Destino imediato",["Centro cirúrgico","UTI","Enfermaria","Observação","Alta do PS","Transferência","Óbito na sala"])
    + '<div style="margin-top:12px">'+fRadio("conduta","Conduta",["Tratamento conservador","Cirurgia"])+'</div>'
    + (get("conduta")==="Cirurgia" ? '<div style="margin-top:10px">'
        + fMulti("procedimento","Procedimento",["Laparotomia","Damage control","Toracotomia","Toracostomia isolada","Fixador externo","Angioembolização","Craniotomia","Outro"])+'</div>' : "")
@@ -674,9 +691,14 @@ function secEscores(){
      + '<div class="sv">'+(si===null?"—":si.toFixed(2))+'</div>'
      + '<div class="sd">'+(si===null?"Precisa de FC e PA sistólica"
         : (si>=1?"≥ 1,0 — perfusão comprometida":"Abaixo de 1,0"))+'</div></div>';
+  const rbItens = [get("rabt_penetrante")?"penetrante":null,
+                   get("efast_global")==="Positivo"?"FAST+":null,
+                   (si!==null&&si>1)?"Shock Index > 1,0":null,
+                   get("rabt_pelve")?"fratura de pelve":null].filter(Boolean).join(" · ");
   h += '<div class="score '+(rb>=2?"r":"g")+'"><div class="sl">RABT</div>'
      + '<div class="sv">'+rb+' / 4</div>'
-     + '<div class="sd">'+(rb>=2?"Critério atingido — acionar transfusão maciça":"Abaixo do gatilho")+'</div></div>';
+     + '<div class="sd">'+(rbItens?rbItens+" — ":"")
+     + (rb>=2?"critério atingido, acionar transfusão maciça":"abaixo do gatilho")+'</div></div>';
   h += '</div>';
 
   h += '<div class="score '+(rt===null?"":(rt<=10?"r":"g"))+'" style="margin-top:10px">'
@@ -774,6 +796,13 @@ function ligar(){
       const a = el.dataset.a, k = el.dataset.k, v = el.dataset.v, i = el.dataset.i;
       if(a==="novo") return novoCaso();
       if(a==="abrir"){ atual = +i; aba=0; vista="ficha"; return render(); }
+      if(a==="apagar"){
+        const c = CASOS[+i];
+        if(confirm("Apagar o caso "+(c && c.id ? c.id : "?")+"? Esta ação não tem volta.\nSe for caso real, exporte o CSV antes.")){
+          CASOS.splice(+i,1); atual = null; salvar(); render();
+        }
+        return;
+      }
       if(a==="aba"){ aba = +i; return render(); }
       if(a==="radio"){ set(k, get(k)===v ? undefined : v); return render(); }
       if(a==="multi"){ toggleMulti(k,v); return render(); }
@@ -849,6 +878,8 @@ function csv(){
       if(v===undefined||v===null) v="";
       if(Array.isArray(v)) v = v.join(" | ");
       if(v===true) v="sim";
+      /* Excel pt-BR com separador ";" espera vírgula decimal — ponto viraria texto */
+      if(typeof v==="number") v = String(v).replace(".",",");
       v = String(v).replace(/"/g,'""').replace(/\r?\n/g," / ");
       return /[;"\n]/.test(v) ? '"'+v+'"' : v;
     };
