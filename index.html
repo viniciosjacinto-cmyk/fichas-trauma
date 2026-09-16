@@ -293,7 +293,7 @@ function shockIndex(){
    Não confundir com o ABC score, que usa PAS ≤ 90 e FC ≥ 120 no lugar do SI. */
 function rabtPontos(){
   let n=0;
-  if(get("rabt_penetrante")) n++;
+  if(ehPenetrante()) n++;
   if(get("efast_global")==="Positivo") n++;
   const si=shockIndex(); if(si!==null && si>1) n++;
   if(get("rabt_pelve")) n++;
@@ -357,12 +357,19 @@ function iss(){
    Ps = 1 / (1 + e^-b),  b = b0 + b1·RTS + b2·ISS + b3·índice de idade
    Coeficientes do MTOS (Boyd, 1987). Índice de idade: 0 se < 55 anos, 1 se ≥ 55.
    Convenção: menores de 15 anos usam os coeficientes de trauma contuso.   */
+/* Tipo de trauma: fonte única para RABT e TRISS.
+   Prioridade: campo "Tipo de trauma" da Cena → mecanismo FAF/FAB → marcação manual. */
+function ehPenetrante(){
+  if(get("mecanismo_tipo")) return get("mecanismo_tipo")==="Penetrante";
+  if(["FAF","FAB"].indexOf(get("mecanismo"))>=0) return true;
+  return !!get("rabt_penetrante");
+}
 function trissPenetrante(){
   const idade = +get("idade");
   if(idade && idade<15) return false;
   const manual = get("triss_mecanismo");
   if(manual) return manual==="Penetrante";
-  return ["FAF","FAB"].indexOf(get("mecanismo"))>=0;
+  return ehPenetrante();
 }
 function triss(){
   const r = rtsW(), i = iss(), idade = +get("idade");
@@ -463,6 +470,7 @@ function secId(){
    + fTexto("data","Data")
    + fTexto("idade","Idade","anos","number")
    + fRadio("sexo","Sexo",["F","M"])
+   + fTexto("peso","Peso (kg)","estimado, se preciso","number")
    + '</div>'
    + '<div class="grid g2" style="margin-top:10px">'
    + fRadio("preenchido_por","Quem está preenchendo",["Interno","R1","R2","R3"])
@@ -514,7 +522,10 @@ function secHorarios(){
 /* --- 2 · cena --- */
 function secCena(){
   return '<div class="sec"><h2>Cena e transporte</h2>'
+   + fRadio("mecanismo_tipo","Tipo de trauma",["Contuso","Penetrante"])
+   + '<div style="margin-top:10px">'
    + fRadio("mecanismo","Mecanismo",["Colisão auto","Moto","Atropelamento","Queda","FAF","FAB","Agressão","Outro"])
+   + '</div>'
    + (get("mecanismo")==="Queda" ? '<div class="grid g4" style="margin-top:8px">'+fTexto("queda_altura","Altura da queda (m)","","number")+'</div>' : "")
    + (get("mecanismo")==="Outro" ? '<div style="margin-top:8px">'+fTexto("mecanismo_outro","Qual mecanismo")+'</div>' : "")
    + '<div style="margin-top:10px">'+fMulti("agravantes","Agravantes",["Ejeção","Óbito no local","Encarceramento","Sem cinto/capacete","Alta velocidade","Nenhum"])+'</div>'
@@ -627,25 +638,29 @@ function secHemo(){
   const r = rabtPontos();
   let h='<div class="sec"><h2>Ácido tranexâmico</h2>'
    + fRadio("atx","Situação",["Feito","Não feito"])
+   + (get("atx")==="Feito" ? '<div style="margin-top:10px">'
+        + fRadio("atx_esquema","Esquema utilizado",["1 g em 10 min + 1 g em 8 h","1 g dose única","2 g em bolus único","Outro"])+'</div>' : "")
    + (get("atx")==="Não feito" ? '<div style="margin-top:10px">'
         + fRadio("atx_motivo","Motivo",["Mais de 3 h do trauma","Sem sangramento","Contraindicação","Outro"])+'</div>' : "")
    + '<div class="opts" style="margin-top:10px">'
-   + fBool("atx_manutencao","Manutenção iniciada","good")
    + fBool("calcio","Cálcio reposto","good")
    + '</div></div>';
 
   const siH = shockIndex();
   const siPos = siH!==null && siH>1;
+  const tipoDefinido = !!get("mecanismo_tipo") || ["FAF","FAB"].indexOf(get("mecanismo"))>=0;
   h += '<div class="sec"><h2>RABT — gatilho de transfusão maciça</h2><div class="opts">'
-   + fBool("rabt_penetrante","Mecanismo penetrante","warn")
+   + (tipoDefinido
+      ? '<button class="opt '+(ehPenetrante()?"on warn":"")+'" style="pointer-events:none; opacity:.9">Mecanismo penetrante'+(ehPenetrante()?" ✓":"")+'</button>'
+      : fBool("rabt_penetrante","Mecanismo penetrante","warn"))
    + '<button class="opt '+(get("efast_global")==="Positivo"?"on warn":"")+'" style="pointer-events:none; opacity:.9">FAST positivo'+(get("efast_global")==="Positivo"?" ✓":"")+'</button>'
    + '<button class="opt '+(siPos?"on warn":"")+'" style="pointer-events:none; opacity:.9">Shock Index &gt; 1,0'
      +(siH!==null?" ("+siH.toFixed(2)+")":"")+(siPos?" ✓":"")+'</button>'
    + fBool("rabt_pelve","Fratura de pelve (suspeita ou confirmada)","warn")
    + '</div>'
    + '<div class="alert '+(r>=2?"r":"g")+'">RABT '+r+' ponto'+(r===1?"":"s")+(r>=2?" — critério atingido, acionar protocolo de transfusão maciça.":" — abaixo do gatilho.")+'</div>'
-   + '<p class="hint">FAST e Shock Index vêm automaticamente dos blocos anteriores. '
-   + 'Penetrante e fratura de pelve são marcados aqui.</p></div>';
+   + '<p class="hint">Penetrante vem do tipo de trauma registrado na Cena; FAST e Shock Index, dos blocos anteriores. '
+   + 'Só a fratura de pelve é marcada aqui.</p></div>';
 
   h += '<div class="sec"><h2>Transfusão até a saída da sala</h2>'
    + fRadio("ptm","Protocolo de transfusão maciça",["Acionado","Não indicado"])
@@ -691,7 +706,7 @@ function secEscores(){
      + '<div class="sv">'+(si===null?"—":si.toFixed(2))+'</div>'
      + '<div class="sd">'+(si===null?"Precisa de FC e PA sistólica"
         : (si>=1?"≥ 1,0 — perfusão comprometida":"Abaixo de 1,0"))+'</div></div>';
-  const rbItens = [get("rabt_penetrante")?"penetrante":null,
+  const rbItens = [ehPenetrante()?"penetrante":null,
                    get("efast_global")==="Positivo"?"FAST+":null,
                    (si!==null&&si>1)?"Shock Index > 1,0":null,
                    get("rabt_pelve")?"fratura de pelve":null].filter(Boolean).join(" · ");
