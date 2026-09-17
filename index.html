@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Ficha Trauma">
 <meta name="theme-color" content="#12253d">
 <link rel="manifest" href="manifest.json">
+
 <title>Ficha de Trauma — PS CG HSP</title>
 <style>
   :root{
@@ -195,7 +196,7 @@ const XABCDE = [
    ["Manta térmica","Fluido aquecido","Nenhum aquecimento"]]
 ];
 
-const SECOES = ["Identificação","Horários","Cena","Admissão","X-ABCDE","FAST / NEXUS","Hemostasia","Saída","Escores","Pós"];
+const SECOES = ["Identificação","Horários","iMIST-AMBO","Admissão","X-ABCDE","FAST / NEXUS","Hemostasia","Saída","Escores","Pós"];
 
 /* regiões do AIS para o cálculo do ISS */
 const AIS_REGIOES = [
@@ -253,7 +254,7 @@ function proximoId(){
 }
 function novoCaso(){
   const c = { id: proximoId(), data: hojeBR(), _criado: new Date().toISOString(), _fechado:false };
-  CASOS.unshift(c); atual = 0; aba = 0; vista="ficha"; salvar(); render();
+  CASOS.unshift(c); atual = 0; aba = 0; vista="ficha"; PARSE_MSG=""; salvar(); render();
 }
 function caso(){ return CASOS[atual] || {}; }
 function set(k,v){ const c=caso(); if(v===undefined||v===null||v==="") delete c[k]; else c[k]=v; salvar(); }
@@ -379,6 +380,273 @@ function triss(){
                 : {b0:-1.2470, b1:0.9544, b2:-0.0768, b3:-1.9052};
   const b = c.b0 + c.b1*r + c.b2*i + c.b3*(idade>=55?1:0);
   return Math.round((1/(1+Math.exp(-b)))*1000)/10;   // em %
+}
+
+/* ============================ PARSER iMIST-AMBO v2  ============================
+   Ajustado ao formato do protocolo PS CG HSP: blocos rotulados (# ID, # IMISTTT AMBO,
+   # XABCDE), linhas i/M/I/S/T/T/T/A/M/B/O e X/A/B/C/D/E, abreviacoes do servico
+   (CC+PR, COBOM, SatO2 em AA, Glasgow (O:V:M), FAST (-)).
+   Preenche APENAS campos vazios. Remove nome e numero de AT do texto guardado.   */
+let PARSE_MSG = "";
+
+function normalizar(x){ return x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); }
+
+/* remove identificadores do texto que fica gravado no aparelho */
+function redigirIdentificacao(raw){
+  let mudou = false;
+  const linhas = raw.split(/\n/);
+  let sec = "";
+  const out = linhas.map(l=>{
+    const low = normalizar(l);
+    if(/^\s*#/.test(l)){
+      sec = low;
+      if(/\bid\b/.test(low) && /\d{1,3}\s*anos/.test(low)){
+        mudou = true;
+        const idade=(low.match(/(\d{1,3})\s*anos/)||[])[1];
+        return "# ID: [identificacao removida]"+(idade?" — "+idade+" anos":"");
+      }
+      return l;
+    }
+    const temAT = /\bat\s*:?\s*\d{5,}/i.test(l);
+    const linhaIdNome = /\bid\b/.test(sec) && /\d{1,3}\s*anos/.test(low) && /[a-z]{3,}\s+[a-z]{3,}/.test(low);
+    if(temAT || linhaIdNome){
+      mudou = true;
+      const idade=(low.match(/(\d{1,3})\s*anos/)||[])[1];
+      return "- [identificacao removida]"+(idade?" — "+idade+" anos":"");
+    }
+    return l;
+  });
+  return { texto: out.join("\n"), mudou };
+}
+
+function parseAPH(){
+  const bruto = get("aph_texto")||"";
+  if(!bruto.trim()){ PARSE_MSG="Cole o texto da passagem antes."; return; }
+
+  const red = redigirIdentificacao(bruto);
+  if(red.mudou) set("aph_texto", red.texto);
+  const raw = red.texto;
+
+  const feitos = [];
+  const vazio = k => get(k)===undefined || get(k)==="";
+  const poe = (k,v,rot)=>{ if(v!==undefined && v!=="" && vazio(k)){ set(k,v); if(rot) feitos.push(rot); } };
+  const marca = (k,v,rot)=>{ if(!tem(k,v)){ toggleMulti(k,v); if(rot) feitos.push(rot); } };
+
+  /* ---------- utilitarios de extracao ---------- */
+  const rxPA   = /\bpa\b\D{0,3}(\d{2,3})\s*[x\/]\s*(\d{2,3})/;
+  const rxFC   = /\bfc\b\D{0,3}(\d{2,3})/;
+  const rxFR   = /\bfr\b\D{0,3}(\d{1,2})\b/;
+  const rxSAT  = /(?:sato2|spo2|so2|sat\s*o2|satura\w*)\D{0,4}(\d{2,3})/;
+  const rxGCS  = /(?:glasgow|\bgcs\b|\becg\b)\D{0,4}(\d{1,2})/;
+  const rxOVM  = /\bo\s*:?\s*(\d)\D{0,4}v\s*:?\s*(\d)\D{0,4}m\s*:?\s*(\d)/;
+
+  function vitaisCena(t){
+    let m;
+    if(m=t.match(rxPA)){ poe("cena_pas",m[1],"PA cena "+m[1]+"x"+m[2]); poe("cena_pad",m[2]); }
+    if(m=t.match(rxFC))  poe("cena_fc",m[1],"FC cena "+m[1]);
+    if(m=t.match(rxFR))  poe("cena_fr",m[1],"FR cena "+m[1]);
+    if(m=t.match(rxSAT)) poe("cena_spo2",m[1],"SatO2 cena "+m[1]);
+    if(m=t.match(rxGCS)) poe("cena_gcs",m[1],"Glasgow cena "+m[1]);
+  }
+  function identificacao(t){
+    let m;
+    if(m=t.match(/(\d{1,3})\s*anos/)) poe("idade",m[1],"idade "+m[1]);
+    if(/masculin|\bhomem\b/.test(t)) poe("sexo","M","sexo M");
+    else if(/feminin|\bmulher\b/.test(t)) poe("sexo","F","sexo F");
+    if(m=t.match(/(\d{2,3})\s*kg/)) poe("peso",m[1],"peso "+m[1]+" kg");
+  }
+  function mecanismo(t, original){
+    let m;
+    const mecs=[[/atropel/,"Atropelamento"],[/\bmoto\b|motocicl/,"Moto"],
+      [/colis|automovel|capot|veicul|\bcarro\b/,"Colisão auto"],[/queda/,"Queda"],
+      [/\bfaf\b|arma de fogo|balead|\btiro\b|\bpaf\b/,"FAF"],[/\bfab\b|arma branca|facada|esfaquead/,"FAB"],
+      [/agress|espancad/,"Agressão"]];
+    let achou=false;
+    for(const [re,val] of mecs){ if(re.test(t)){ poe("mecanismo",val,"mecanismo "+val); achou=true; break; } }
+    if(!achou && original.trim()){
+      poe("mecanismo","Outro","mecanismo Outro");
+      poe("mecanismo_outro", original.trim(), "descrição: "+original.trim().slice(0,40));
+    }
+    if(/\bfaf\b|arma de fogo|balead|\btiro\b|\bfab\b|arma branca|facada|esfaquead|penetrante/.test(t))
+      poe("mecanismo_tipo","Penetrante","tipo penetrante");
+    else poe("mecanismo_tipo","Contuso","tipo contuso");
+    if(get("mecanismo")==="Queda" && (m=t.match(/(\d+(?:[.,]\d+)?)\s*m(?:etros)?\b/)))
+      poe("queda_altura",m[1].replace(",","."),"altura "+m[1]+" m");
+    const agg=[[/ejetad|ejecao/,"Ejeção"],[/obito no local|morte no local/,"Óbito no local"],
+      [/encarcerad/,"Encarceramento"],[/sem capacete|sem cinto/,"Sem cinto/capacete"],[/alta velocidade/,"Alta velocidade"]];
+    for(const [re,val] of agg){ if(re.test(t)) marca("agravantes",val,"agravante: "+val); }
+  }
+  function transporte(t){
+    if(/samu/.test(t)) poe("transporte","SAMU","transporte SAMU");
+    else if(/bombeiro|cobom/.test(t)) poe("transporte","Bombeiros","transporte Bombeiros");
+    else if(/\bgrau\b/.test(t)) poe("transporte","GRAU","transporte GRAU");
+    else if(/proprio/.test(t)) poe("transporte","Próprios meios","meios próprios");
+    else poe("transporte","Outro serviço","transporte: outro serviço");
+  }
+  function tratamento(t){
+    let m;
+    if(/\bcc\b|colar/.test(t)) marca("aph_fez","Colar cervical","APH: colar");
+    if(/\bpr\b|prancha/.test(t)) marca("aph_fez","Prancha","APH: prancha");
+    if(/torniquete/.test(t)) marca("aph_fez","Torniquete","APH: torniquete");
+    if(/tranexamico|transamin|\btxa\b|\batx\b/.test(t)) marca("aph_fez","Ácido tranexâmico","APH: tranexâmico");
+    if(/\biot\b|intubad/.test(t)) marca("aph_fez","IOT","APH: IOT");
+    if(/hemocomponente|concentrado de hemacia|sangue total/.test(t)) marca("aph_fez","Hemocomponente","APH: hemocomponente");
+    if(m=t.match(/(\d{3,4})\s*ml\b/)){ marca("aph_fez","Volume","APH: volume"); poe("aph_volume",m[1],"volume "+m[1]+" mL"); }
+  }
+  function ambo(letra,t,original){
+    if(letra==="a"){ if(/nega/.test(t)) poe("alergia","Nega","alergia: nega"); }
+    if(letra==="m"){
+      const m=t.match(/varfarina|marevan|rivaroxabana|xarelto|apixabana|eliquis|dabigatrana|pradaxa|clopidogrel|\baas\b/);
+      if(m){ poe("anticoag","Sim","anticoagulante: sim"); poe("anticoag_qual",m[0],"droga: "+m[0]); }
+      else if(/nega|nao informado/.test(t)===false && t.trim()) poe("comorbidades_meds_nota",undefined);
+    }
+    if(letra==="b"){ if(/nega/.test(t)) poe("comorbidades","Nega","antecedentes: nega"); }
+  }
+  /* X-ABCDE em tres estados: normal (frase-assinatura do servico presente),
+     alterado (achado transcrito para o campo "alterado"), ou indeterminado —
+     que vira PENDENCIA para exame e preenchimento manual.                    */
+  function xabcde(letra, t, orig){
+    let m;
+    const setAlt  = ()=>{ poe(letra+"_alterado", orig.trim(), letra.toUpperCase()+" alterado (transcrito)"); };
+    const setNorm = ()=>{ poe(letra+"_normal", true, letra.toUpperCase()+" normal"); };
+
+    if(letra==="x"){
+      if(/sem sangramento ameacador/.test(t)) setNorm();
+      else if(orig.trim().length>8) setAlt();
+      return;
+    }
+    if(letra==="a"){
+      const ta = t.replace(/sem desvio de traqueia/g," ").replace(/sem (sinais? de )?fuligem[^,.;]*/g," ").replace(/sem sangue em cavidade[^,.;]*/g," ");
+      const alt = /mascara laringea|\biot\b|intubad|crico|obstru|estridor|fuligem|sangue em cavidade|ventilacao nao efetiva|desvio de traqueia/.test(ta);
+      if(alt) setAlt();
+      else if(/via aerea pervia/.test(t)) setNorm();
+      return;
+    }
+    if(letra==="b"){
+      if(m=t.match(rxFR))  poe("adm_fr",m[1],"FR admissão "+m[1]);
+      if(m=t.match(rxSAT)) poe("adm_spo2",m[1],"SatO2 admissão "+m[1]);
+      const tb = t.replace(/sem enfisema[^,.;]*/g," ");
+      const alt = /puncao|dreno|pneumotorax|hemotorax|hipofonese|abolid|assimetr|instabil|flictena|crepita|ventilacao nao efetiva|queimadura|enfisema/.test(tb);
+      if(alt) setAlt();
+      else if(/expansibilidade.{0,25}simetrica/.test(t)) setNorm();
+      return;
+    }
+    if(letra==="c"){
+      if(m=t.match(rxPA)){ poe("adm_pas",m[1],"PA admissão "+m[1]+"x"+m[2]); poe("adm_pad",m[2]); }
+      if(m=t.match(rxFC))  poe("adm_fc",m[1],"FC admissão "+m[1]);
+      if(/\bfast\b\s*(?:\(?\s*-\s*\)?|negativo)/.test(t)) poe("efast_global","Negativo","FAST negativo");
+      else if(/\bfast\b\s*(?:\(?\s*\+\s*\)?|positivo)/.test(t)) poe("efast_global","Positivo","FAST positivo");
+      const tc = t.replace(/sem dor a palpacao[^,.;]*/g," ").replace(/impossibilidade de avaliar[^,.;]*/g," ");
+      const alt = /inaudivel|instavel|tec\s*>\s*3|hipotens|choque|dor a palpacao/.test(tc);
+      if(alt) setAlt();
+      else if(/sem dor a palpacao abdominal/.test(t) && /pelve estavel/.test(t)) setNorm();
+      return;
+    }
+    if(letra==="d"){
+      if(m=t.match(rxOVM)){ poe("gcs_o",m[1],"Glasgow O"+m[1]+"V"+m[2]+"M"+m[3]); poe("gcs_v",m[2]); poe("gcs_m",m[3]); }
+      const alt = /midriatic|anisocor|nao fotorreagent|deficit focal(?! *ausente)|glasgow\s*[3-8]\b|\becg\s*[3-8]\b/.test(t.replace(/sem deficits? focais?/g," "));
+      if(alt) setAlt();
+      else if(/isocoric/.test(t) && /fotorreagent/.test(t)) setNorm();
+      return;
+    }
+    if(letra==="e"){
+      const te = t.replace(/sem lesoes[^,.;]*/g," ").replace(/sem desalinhamento/g," ");
+      const alt = /lesao|lesoes|escoriac|queimadura|flictena|fratura|ferimento|hematoma|deform|amputa|desalinhamento/.test(te);
+      if(alt) setAlt();
+      else if(/dorso sem desalinhamento/.test(t)) setNorm();
+      return;
+    }
+  }
+
+  /* ---------- varredura linha a linha, com secoes ---------- */
+  const linhas = raw.split(/\n/);
+  let sec = "imist";
+  let iVistos = 0, tVistos = 0, temRotulo = false;
+
+  for(const linhaOrig of linhas){
+    const L = linhaOrig.trim();
+    if(!L) continue;
+    const low = normalizar(L);
+
+    if(/^#/.test(low)){
+      if(low.includes("xabcde")) sec="xabcde";
+      else if(low.includes("imist")) sec="imist";
+      else if(low.includes("conduta")) sec="conduta";
+      else if(low.includes("protocolo")) sec="prot";
+      else if(low.includes("exame")) sec="exames";
+      else if(/#\s*id\b/.test(low)) sec="id";
+      else if(/#\s*hd\b/.test(low)) sec="hd";
+      else sec="outra";
+      if(sec==="id") identificacao(low);
+      continue;
+    }
+    /* mudanca de bloco sem cabecalho "#": comum nas notas reais */
+    if(/^protocolo\s+trauma/.test(low)){ sec="prot"; continue; }
+    if(/^imist/.test(low)){ sec="imist"; continue; }
+    if(/^xabcde/.test(low)){ sec="xabcde"; continue; }
+
+    const rot = L.match(/^([A-Za-z])\s*:\s*(.*)$/);
+
+    /* linha rotulada i/M/S/T fora do XABCDE puxa a leitura para o modo iMIST,
+       mesmo que o cabecalho do bloco nao exista na nota */
+    if(rot && sec!=="xabcde" && sec!=="imist"){
+      const l0 = normalizar(rot[1]);
+      if(l0==="i"||l0==="m"||l0==="s"||l0==="t") sec="imist";
+    }
+
+    if(sec==="conduta"||sec==="prot"||sec==="exames") continue;
+    if(sec==="id"||sec==="hd"){ identificacao(low); continue; }
+    if(!rot){ if(sec==="imist") vitaisCena(low); continue; }
+    temRotulo = true;
+    const letra = normalizar(rot[1]);
+    const contLow = normalizar(rot[2]);
+    const contOrig = rot[2];
+
+    /* X: liga o modo XABCDE mesmo sem cabecalho */
+    if(letra==="x") sec="xabcde";
+
+    if(sec==="xabcde"){ xabcde(letra, contLow, contOrig); continue; }
+
+    /* secao iMIST-AMBO */
+    if(letra==="i"){
+      iVistos++;
+      if(/masculin|feminin|\bhomem\b|\bmulher\b|\bsexo\b|\d{1,3}\s*anos/.test(contLow) && iVistos===1) identificacao(contLow);
+      else poe("injurias", contOrig, "injúrias registradas");
+      continue;
+    }
+    if(letra==="m"){ if(sec==="imist" && !/^\s*(nega|nao informado|-)\s*$/.test(contLow) && get("mecanismo")===undefined && !get("anticoag") && !/varfarina|xarelto|rivaroxabana|apixabana|eliquis|clopidogrel|\baas\b|mg\b|mcg\b|ampola/.test(contLow)) { mecanismo(contLow, contOrig); } else { ambo("m", contLow, contOrig); } continue; }
+    if(letra==="s"){ vitaisCena(contLow); continue; }
+    if(letra==="t"){
+      tVistos++;
+      if(/samu|bombeiro|cobom|\bgrau\b|resgate|aeromedic|helicopter|proprio|particular/.test(contLow)) transporte(contLow);
+      else if(/^\s*~?\s*\d+\s*(min|h\b|hora)/.test(contLow)) poe("aph_tempo", contOrig.trim(), "tempo de transporte "+contOrig.trim());
+      else tratamento(contLow);
+      continue;
+    }
+    if(letra==="a"||letra==="b"||letra==="o"){ ambo(letra, contLow, contOrig); continue; }
+  }
+
+  /* fallback: texto corrido sem rotulos */
+  if(!temRotulo){
+    const t = " "+normalizar(raw)+" ";
+    identificacao(t); mecanismo(t, ""); vitaisCena(t); transporte(t); tratamento(t);
+    if(/nega alergia|sem alergia/.test(t)) poe("alergia","Nega","alergia: nega");
+  }
+
+  /* pendencias: letras sem normal e sem alterado apos a leitura */
+  const pend = [];
+  ["x","a","b","c","d","e"].forEach(k=>{
+    if(!get(k+"_normal") && vazio(k+"_alterado")) pend.push(k.toUpperCase());
+  });
+  if(pend.length) set("xabcde_pend", pend); else set("xabcde_pend", undefined);
+
+  const itens = feitos.filter(Boolean);
+  PARSE_MSG = (red.mudou ? "<b>Nome e nº de atendimento removidos do texto</b> — sem identificadores neste aparelho. " : "")
+    + (itens.length
+       ? "Preenchi "+itens.length+" itens: "+itens.join(" · ")+". "
+       : "Não reconheci nada preenchível no texto. ")
+    + (pend.length ? "<b>Pendências no X-ABCDE: "+pend.join(", ")+"</b> — não constavam na passagem; examinar e preencher na aba X-ABCDE. " : "")
+    + "<b>Confira cada campo — a responsabilidade é de quem assina.</b>";
 }
 
 /* ============================ RENDER ============================ */
@@ -521,7 +789,21 @@ function secHorarios(){
 
 /* --- 2 · cena --- */
 function secCena(){
-  return '<div class="sec"><h2>Cena e transporte</h2>'
+  return '<div class="sec"><h2>Passagem do APH — preenchimento assistido</h2>'
+   + fArea("aph_texto","Cole ou dite aqui a passagem iMIST-AMBO do APH","Cole a nota inteira no formato do serviço (# ID, # IMISTTT AMBO, # XABCDE…) ou só o bloco iMIST. Nome e AT são removidos automaticamente.")
+   + '<div style="margin-top:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">'
+   + '<button class="btn p" data-a="parse">Preencher campos a partir do texto</button>'
+   + '<span class="hint">Funciona sem internet, por regras de texto. Preenche apenas campos ainda vazios — <b>confira cada um</b>.</span></div>'
+   + (PARSE_MSG ? '<div class="alert a" style="margin-top:8px">'+PARSE_MSG+'</div>' : '')
+   + '</div>'
+
+   + '<div class="sec"><h2>i · Identificação</h2><div class="grid g3">'
+   + fTexto("idade","Idade","anos","number")
+   + fRadio("sexo","Sexo",["F","M"])
+   + fTexto("peso","Peso (kg)","estimado, se preciso","number")
+   + '</div></div>'
+
+   + '<div class="sec"><h2>M · Mecanismo do trauma</h2>'
    + fRadio("mecanismo_tipo","Tipo de trauma",["Contuso","Penetrante"])
    + '<div style="margin-top:10px">'
    + fRadio("mecanismo","Mecanismo",["Colisão auto","Moto","Atropelamento","Queda","FAF","FAB","Agressão","Outro"])
@@ -529,23 +811,37 @@ function secCena(){
    + (get("mecanismo")==="Queda" ? '<div class="grid g4" style="margin-top:8px">'+fTexto("queda_altura","Altura da queda (m)","","number")+'</div>' : "")
    + (get("mecanismo")==="Outro" ? '<div style="margin-top:8px">'+fTexto("mecanismo_outro","Qual mecanismo")+'</div>' : "")
    + '<div style="margin-top:10px">'+fMulti("agravantes","Agravantes",["Ejeção","Óbito no local","Encarceramento","Sem cinto/capacete","Alta velocidade","Nenhum"])+'</div>'
-   + '<div style="margin-top:10px">'+fRadio("transporte","Transporte",["SAMU","Bombeiros","GRAU","Próprios meios","Outro serviço"])+'</div>'
    + '</div>'
-   + '<div class="sec"><h2>Sinais vitais na cena</h2><div class="grid g6">'
+
+   + '<div class="sec"><h2>I · Injúrias identificadas na cena</h2>'
+   + fArea("injurias","Lesões descritas pelo APH","deformidades, sangramentos, lesões de partes moles…")
+   + '</div>'
+
+   + '<div class="sec"><h2>S · Sinais vitais da cena</h2><div class="grid g6">'
    + fTexto("cena_pas","PAS","","number") + fTexto("cena_pad","PAD","","number")
    + fTexto("cena_fc","FC","","number") + fTexto("cena_fr","FR","","number")
    + fTexto("cena_spo2","SpO₂ %","","number") + fTexto("cena_gcs","GCS","","number")
+   + '</div></div>'
+
+   + '<div class="sec"><h2>T · Transporte</h2>'
+   + fRadio("transporte","Quem trouxe",["SAMU","Bombeiros","GRAU","Próprios meios","Outro serviço"])
    + '</div>'
-   + '<div style="margin-top:10px">'+fMulti("aph_fez","O APH realizou",["Colar cervical","Prancha","Torniquete","Volume","Ácido tranexâmico","IOT","Hemocomponente","Nada"])+'</div>'
+
+   + '<div class="sec"><h2>T · Tempo</h2><div class="grid g2">'
+   + fTexto("aph_tempo","Tempo de transporte até a porta","ex.: 50 min")
+   + '</div></div>'
+
+   + '<div class="sec"><h2>T · Tratamento realizado pelo APH</h2>'
+   + fMulti("aph_fez","Intervenções",["Colar cervical","Prancha","Torniquete","Volume","Ácido tranexâmico","IOT","Hemocomponente","Nada"])
    + (tem("aph_fez","Volume") ? '<div class="grid g4" style="margin-top:8px">'+fTexto("aph_volume","Volume infundido no APH (mL)","","number")+'</div>' : "")
    + '</div>'
-   + '<div class="sec"><h2>AMBO</h2><div class="grid g2">'
-   + fRadio("alergia","Alergia",["Nega","Sim","Não avaliável"])
-   + fRadio("anticoag","Anticoagulante ou antiagregante",["Não","Sim","Não avaliável"])
-   + '</div>'
+
+   + '<div class="sec"><h2>AMBO</h2>'
+   + fRadio("alergia","A · Alergias",["Nega","Sim","Não avaliável"])
+   + '<div style="margin-top:10px">'+fRadio("anticoag","M · Medicações — anticoagulante ou antiagregante",["Não","Sim","Não avaliável"])+'</div>'
    + (get("anticoag")==="Sim" ? '<div style="margin-top:8px">'+fTexto("anticoag_qual","Qual droga e última dose")+'</div>' : "")
-   + '<div style="margin-top:10px">'+fTexto("comorbidades","Comorbidades relevantes","cardiopatia, hepatopatia, doença renal…")+'</div>'
-   + '<div style="margin-top:10px">'+fMulti("marcadores","Marcadores",["Etilismo ou drogas","Recusa transfusão","Gestante","Cirurgia neurológica prévia"])+'</div>'
+   + '<div style="margin-top:10px">'+fTexto("comorbidades","B · Background — comorbidades relevantes","cardiopatia, hepatopatia, doença renal… ou Nega")+'</div>'
+   + '<div style="margin-top:10px">'+fMulti("marcadores","O · Outros — marcadores",["Etilismo ou drogas","Recusa transfusão","Gestante","Cirurgia neurológica prévia"])+'</div>'
    + '</div>';
 }
 
@@ -585,6 +881,9 @@ function secXabcde(){
     h += '<div class="xrow">'
        + '<div class="xhead"><div class="xltr">'+L+'</div>'
        + '<div class="xnorm">'+frase+'</div>'
+       + ((!norm && !get(k+"_alterado") && tem("xabcde_pend",L))
+          ? '<span style="background:#fff6e5; color:#7a4a00; border:1.5px solid #b26a00; border-radius:999px; font-size:12px; font-weight:800; padding:6px 11px; white-space:nowrap">PENDENTE</span>'
+          : '')
        + '<button class="btn-norm '+(norm?"on":"")+'" data-a="bool" data-k="'+k+'_normal">'+(norm?"NORMAL ✓":"NORMAL")+'</button>'
        + '</div>';
     if(!norm) h += fArea(k+"_alterado","O que está alterado","descreva objetivamente");
@@ -810,7 +1109,7 @@ function ligar(){
     el.addEventListener("click", ev=>{
       const a = el.dataset.a, k = el.dataset.k, v = el.dataset.v, i = el.dataset.i;
       if(a==="novo") return novoCaso();
-      if(a==="abrir"){ atual = +i; aba=0; vista="ficha"; return render(); }
+      if(a==="abrir"){ atual = +i; aba=0; vista="ficha"; PARSE_MSG=""; return render(); }
       if(a==="apagar"){
         const c = CASOS[+i];
         if(confirm("Apagar o caso "+(c && c.id ? c.id : "?")+"? Esta ação não tem volta.\nSe for caso real, exporte o CSV antes.")){
@@ -836,6 +1135,7 @@ function ligar(){
         return render();
       }
       if(a==="fechar"){ set("_fechado", get("_fechado") ? undefined : true); return render(); }
+      if(a==="parse"){ parseAPH(); return render(); }
       if(a==="export") return exportar();
     });
   });

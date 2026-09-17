@@ -51,6 +51,34 @@ para coleta real.
 5. Fim do plantão ou uma vez por semana: **Casos → Exportar dados → Baixar CSV**.
    Guardar o arquivo e importar no REDCap.
 
+## Novidades da versão 7
+
+- **Aba iMIST-AMBO** (antiga Cena), reorganizada na sequência do mnemônico:
+  i · M · I · S · T · T · T · AMBO — a tela acompanha a ordem da passagem do APH.
+- **Preenchimento assistido**: cole a nota no formato do serviço (# ID, # IMISTTT
+  AMBO, # XABCDE) e o app extrai identificação, mecanismo com tipo e altura,
+  injúrias, sinais vitais da cena e da admissão, os três T desambiguados
+  (transporte / tempo / tratamento, com CC+PR reconhecidos), AMBO, Glasgow
+  decomposto e FAST. Funciona offline; preenche só campos vazios; lista tudo
+  para conferência.
+- **X-ABCDE em três estados a partir da nota**: frase-padrão presente → NORMAL;
+  achado descrito → transcrito para o campo "alterado"; sem menção → etiqueta
+  PENDENTE na letra, até alguém examinar e preencher.
+- **Nome e número de AT são removidos automaticamente** do texto colado —
+  nenhum identificador fica no aparelho.
+- Validado com bateria automatizada sobre 4 notas reais do serviço:
+  118 verificações, 118 corretas.
+
+## Novidades da versão 5
+
+- **Tipo de trauma (contuso/penetrante)** na aba Cena. É fonte única: alimenta
+  sozinho o critério "penetrante" do RABT e a escolha de coeficientes do TRISS.
+- **Esquema do ácido tranexâmico** quando "Feito": 1 g em 10 min + 1 g em 8 h,
+  1 g dose única, 2 g em bolus único, ou outro.
+- **Peso** na Identificação (estimado, se preciso).
+- O preenchimento assistido da passagem iMIST-AMBO foi retirado por decisão da
+  equipe; pode voltar numa versão futura.
+
 ## Regras que o app assume
 
 - **Nenhum identificador do paciente entra no aparelho.** Só o código do estudo
