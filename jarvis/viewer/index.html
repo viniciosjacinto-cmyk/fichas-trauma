@@ -1,0 +1,1073 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.A.R.V.I.S.</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='none' stroke='%2337e2b0' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='9' fill='%2337e2b0'/%3E%3C/svg%3E">
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+<style>
+  :root {
+    --bg: #02040a;
+    --ink: #e8f1ff;
+    --mut: #8aa0bf;
+    --dim: #4d5f7a;
+    --glass: rgba(10, 18, 32, 0.72);
+    --edge: rgba(120, 170, 255, 0.18);
+    --accent: #37e2b0;
+    --warn: #ff6b7d;
+    --radius: 16px;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; }
+  #galaxy { position: fixed; inset: 0; }
+  button { font: inherit; color: inherit; }
+  .glass { background: var(--glass); border: 1px solid var(--edge); border-radius: var(--radius);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; top: 16px; left: 16px; display: flex; align-items: center; gap: 12px;
+    pointer-events: none; user-select: none; }
+  /* reator arc: anel de segmentos girando, núcleo que pulsa com a fala (--pulse vem do JS) */
+  .reactor { --pulse: 1; --glow: var(--accent); width: 44px; height: 44px; position: relative;
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--glow) 55%, transparent)); }
+  .reactor svg { width: 100%; height: 100%; overflow: visible; }
+  .reactor .ring { fill: none; stroke: var(--glow); stroke-width: 1.5; opacity: .55; }
+  .reactor .segs { fill: none; stroke: var(--glow); stroke-width: 4; stroke-dasharray: 9 6.6; opacity: .85;
+    transform-origin: 32px 32px; animation: spin 24s linear infinite; }
+  .reactor .core { fill: var(--glow); transform-origin: 32px 32px; transform: scale(var(--pulse));
+    transition: transform .08s ease-out; }
+  .reactor .halo { fill: var(--glow); opacity: .18; transform-origin: 32px 32px;
+    transform: scale(calc(var(--pulse) * 1.15)); animation: breathe 3.2s ease-in-out infinite; }
+  body.speaking .reactor .segs { animation-duration: 3s; }
+  body.listening .reactor { --glow: var(--warn); }
+  body.listening .reactor .segs { animation-duration: 6s; }
+  body.armed .reactor { --glow: #ffd166; }
+  body.handsfree .reactor .ring { stroke-dasharray: 2 3; opacity: .9; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  @keyframes breathe { 0%, 100% { opacity: .12 } 50% { opacity: .3 } }
+  .brand { font-weight: 700; letter-spacing: .32em; font-size: 14px; }
+  .count, .mode { font: 12px/1.2 var(--mono); color: var(--mut); letter-spacing: .04em; }
+  .mode { margin-top: 2px; color: var(--dim); }
+
+  /* ---------- legenda ---------- */
+  #legend { position: fixed; left: 16px; bottom: 120px; display: flex; flex-direction: column; gap: 4px;
+    font-size: 12px; color: var(--mut); }
+  #legend button { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 2px 4px;
+    color: inherit; cursor: pointer; border-radius: 8px; text-align: left; }
+  #legend button:hover { color: var(--ink); background: rgba(255,255,255,.05); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 8px currentColor; }
+
+  /* ---------- painel da nota ---------- */
+  #panel { position: fixed; top: 16px; right: 16px; width: min(380px, calc(100vw - 32px));
+    max-height: calc(100vh - 260px); overflow: auto; padding: 18px 18px 16px; display: none; }
+  #panel.open { display: block; animation: rise .35s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+  #panel h2 { margin: 6px 34px 2px 0; font-size: 19px; line-height: 1.25; }
+  .chip-group { display: inline-flex; align-items: center; gap: 6px; font: 11px/1 var(--mono); color: var(--mut);
+    text-transform: uppercase; letter-spacing: .08em; }
+  .path { font: 11px/1.4 var(--mono); color: var(--dim); margin-bottom: 12px; word-break: break-all; }
+  .excerpt { white-space: pre-wrap; color: #cfdcf0; font-size: 14px; }
+  .excerpt code { font: 12.5px var(--mono); background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 5px; }
+  .excerpt .h { font-weight: 700; color: var(--ink); }
+  .wl { color: var(--accent); cursor: pointer; text-decoration: none; border-bottom: 1px dashed rgba(55,226,176,.45); }
+  .wl.dead { color: var(--mut); cursor: default; border-bottom-color: transparent; }
+  .rel { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--edge); }
+  .rel-title { font: 11px/1 var(--mono); color: var(--mut); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--edge); background: rgba(255,255,255,.04); cursor: pointer; font-size: 12.5px; }
+  .chip:hover { border-color: rgba(55,226,176,.5); }
+  .x { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--edge);
+    background: rgba(255,255,255,.04); cursor: pointer; line-height: 1; }
+
+  /* ---------- resposta + barra ---------- */
+  #dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(760px, calc(100vw - 32px));
+    display: flex; flex-direction: column; gap: 8px; transition: left .35s ease, width .35s ease; }
+  #answer { padding: 14px 18px; display: none; }
+  #answer.show { display: block; animation: rise .35s ease-out; }
+  #answer .q { font-size: 12.5px; color: var(--mut); margin-bottom: 4px; }
+  #answer .a { font-size: 16px; line-height: 1.5; }
+  #answer .chips { margin-top: 10px; }
+  #status { min-height: 18px; padding: 0 6px; font: 12px/1.5 var(--mono); color: var(--accent); }
+  #status.err { color: var(--warn); }
+  #ask { display: flex; align-items: center; gap: 8px; padding: 7px; border-radius: 999px; }
+  #q { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--ink); font-size: 16px; padding: 8px 6px; }
+  #q::placeholder { color: var(--dim); }
+  .round { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--edge); background: rgba(255,255,255,.05);
+    cursor: pointer; display: grid; place-items: center; flex: none; font-size: 17px; }
+  .round:hover { border-color: rgba(55,226,176,.6); }
+  .round:disabled { opacity: .35; cursor: not-allowed; }
+  #mic.on { background: rgba(255,107,125,.18); border-color: var(--warn); animation: ring 1.2s ease-out infinite; }
+  @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(255,107,125,.5) } 100% { box-shadow: 0 0 0 14px rgba(255,107,125,0) } }
+  #send { background: var(--accent); color: #02130d; border-color: transparent; font-weight: 700; }
+  #wake { font-size: 15px; letter-spacing: .02em; }
+  #wake.on { background: rgba(255,209,102,.16); border-color: #ffd166; color: #ffd166; }
+  a.chip { text-decoration: none; color: var(--ink); }
+  a.chip .dot { background: var(--accent); color: var(--accent); }
+  .srcs { margin-top: 10px; }
+  .srcs .t { font: 11px/1 var(--mono); color: var(--mut); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+
+  #hint { position: fixed; top: 58px; left: 16px; font: 12px var(--mono); color: var(--mut); opacity: .85; }
+  #fatal { position: fixed; inset: 0; display: none; place-items: center; padding: 24px; text-align: center; color: var(--mut); }
+  #fatal.show { display: grid; }
+  .tip { font: 12px/1.35 var(--mono); padding: 6px 9px; border-radius: 8px; background: rgba(5,10,20,.88);
+    border: 1px solid var(--edge); color: var(--ink); }
+  .tip span { color: var(--mut); }
+
+  /* tela larga: com o painel aberto, a barra se recentra no espaço livre à esquerda */
+  @media (min-width: 1000px) {
+    body.panel-open #panel { max-height: calc(100vh - 32px); }
+    body.panel-open #dock { left: calc((100vw - 412px) / 2); width: min(760px, calc(100vw - 460px)); }
+  }
+  @media (max-width: 720px) {
+    #panel { top: 64px; max-height: 40vh; }
+    #answer { max-height: 24vh; overflow: auto; }
+    #legend { display: none; }
+    #answer .a { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<div id="galaxy"></div>
+
+<header id="hud">
+  <div class="reactor" id="reactor" aria-hidden="true">
+    <svg viewBox="0 0 64 64">
+      <circle class="halo" cx="32" cy="32" r="20"/>
+      <circle class="ring" cx="32" cy="32" r="30"/>
+      <circle class="segs" cx="32" cy="32" r="24"/>
+      <circle class="core" cx="32" cy="32" r="8"/>
+    </svg>
+  </div>
+  <div>
+    <div class="brand">J.A.R.V.I.S.</div>
+    <div class="count" id="count">…</div>
+    <div class="mode" id="mode"></div>
+  </div>
+</header>
+<div id="hint" hidden></div>
+<nav id="legend" aria-label="Grupos"></nav>
+
+<aside id="panel" class="glass" aria-live="polite">
+  <button class="x" id="close" type="button" aria-label="Fechar">×</button>
+  <div id="panel-body"></div>
+</aside>
+
+<div id="dock">
+  <section id="answer" class="glass" aria-live="polite"></section>
+  <div id="status" role="status"></div>
+  <form id="ask" class="glass" autocomplete="off">
+    <button class="round" id="mic" type="button" aria-label="Falar">🎙</button>
+    <button class="round" id="wake" type="button" aria-label="Mãos livres" title="Mãos livres: diga “Jarvis…”">👂</button>
+    <input id="q" name="q" enterkeyhint="send">
+    <button class="round" id="send" type="submit" aria-label="Enviar">➤</button>
+  </form>
+</div>
+<div id="fatal"></div>
+
+<script src="graph-data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.1/dist/3d-force-graph.min.js"></script>
+<script type="module">
+/* ======================================================================
+   JARVIS · viewer — galáxia 3D (Prompt 1), barra de pergunta (2), voz (3),
+   fly-to-source (4), saudação (5) e memória por voz (6).
+   ====================================================================== */
+
+const STR = {
+  pt: {
+    placeholder: "Pergunte às suas notas — ou diga “lembre que…”",
+    listening: "● ouvindo…", thinking: "● pensando…", speaking: "● falando…", saving: "● guardando na memória…",
+    clickToHear: "clique em qualquer lugar para ligar a voz",
+    micUnsupported: "Reconhecimento de voz: use Chrome ou Edge.",
+    micBlocked: "Microfone bloqueado: cadeado na barra de endereço → Microfone → Permitir.",
+    micService: "Reconhecimento de voz indisponível. Safari: ative o Ditado (Ajustes do Sistema → Teclado → Ditado). Chrome: cadeado na barra de endereço → Microfone → Permitir.",
+    queued: "● na fila — respondo assim que terminar a anterior…",
+    micNoSpeech: "Não ouvi nada. Tente de novo.",
+    micNetwork: "O reconhecimento de voz do Chrome precisa de internet.",
+    handsFree: "● mãos livres — diga “Jarvis” e o pedido", armed: "● às ordens, senhor…",
+    handsFreeOff: "mãos livres desligado", researching: "● pesquisando na web…", webSources: "Fontes na web",
+    noSources: "sem fontes", agenda: "Na agenda de hoje:", journal: d => `diário · ${d}`,
+    wake: "Mãos livres", wakeTitle: "Mãos livres: diga “Jarvis…” sem clicar",
+    count: (n, l) => `${n} ${n === 1 ? "nota" : "notas"} · ${l} ${l === 1 ? "ligação" : "ligações"}`,
+    greeting: n => `${dayPart("pt")}, senhor. ${n} ${n === 1
+      ? "nota indexada, presente e contabilizada" : "notas indexadas, todas presentes e contabilizadas"}.`,
+    you: "Você", sources: "Fontes", linked: "Ligada a", cluster: n => `${n} notas sustentam a resposta`,
+    newMemory: "nova memória",
+    stale: "A galáxia mudou no servidor: recarregue a página (Cmd/Ctrl+Shift+R).",
+    noGraph: "graph-data.js não carregou. Na pasta jarvis/, rode python3 server.py e abra http://localhost:4700",
+    noLib: "Não consegui carregar a biblioteca 3D da CDN. Sem internet?",
+    noServer: "Servidor fora do ar. Rode python3 server.py na pasta jarvis/.",
+    brainOff: "Cérebro desligado: cole sua API key em config.json (ou instale o Claude Code).",
+    mic: "Falar", send: "Enviar", close: "Fechar",
+  },
+  en: {
+    placeholder: "Ask your notes — or say “remember that…”",
+    listening: "● listening…", thinking: "● thinking…", speaking: "● speaking…", saving: "● filing it away…",
+    clickToHear: "click anywhere to switch the voice on",
+    micUnsupported: "Speech recognition needs Chrome or Edge.",
+    micBlocked: "Microphone blocked: lock icon in the address bar → Microphone → Allow.",
+    micService: "Speech recognition unavailable. Safari: turn on Dictation (System Settings → Keyboard → Dictation). Chrome: lock icon → Microphone → Allow.",
+    queued: "● queued — I'll get to it right after this one…",
+    micNoSpeech: "I didn't catch anything. Try again.",
+    micNetwork: "Chrome's speech recognition needs an internet connection.",
+    handsFree: "● hands-free — say “Jarvis” and your request", armed: "● at your service, sir…",
+    handsFreeOff: "hands-free off", researching: "● researching the web…", webSources: "Web sources",
+    noSources: "no sources", agenda: "On today's agenda:", journal: d => `journal · ${d}`,
+    wake: "Hands-free", wakeTitle: "Hands-free: say “Jarvis…” without clicking",
+    count: (n, l) => `${n} ${n === 1 ? "note" : "notes"} · ${l} ${l === 1 ? "link" : "links"}`,
+    greeting: n => `${dayPart("en")}, sir. ${n} ${n === 1
+      ? "note indexed, present and accounted for" : "notes indexed, all present and accounted for"}.`,
+    you: "You", sources: "Sources", linked: "Linked to", cluster: n => `${n} notes behind this answer`,
+    newMemory: "new memory",
+    stale: "The galaxy changed on the server: reload the page (Cmd/Ctrl+Shift+R).",
+    noGraph: "graph-data.js did not load. In jarvis/, run python3 server.py and open http://localhost:4700",
+    noLib: "Could not load the 3D library from the CDN. Offline?",
+    noServer: "Server is down. Run python3 server.py in jarvis/.",
+    brainOff: "Brain offline: paste your API key into config.json (or install Claude Code).",
+    mic: "Speak", send: "Send", close: "Close",
+  },
+};
+
+function dayPart(lg) {
+  const h = new Date().getHours();
+  if (lg === "pt") return h < 5 ? "Boa noite" : h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+  return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+
+// mesma regra do server.py: frases que viram nota nova em vez de pergunta
+const REMEMBER_RE = /^\s*(?:jarvis[\s,:;.!-]*)?(?:remember\s+that|lembr(?:e|a|ar)(?:[-\s]se)?(?:\s+de)?\s+que|anot(?:e|a|ar)(?:\s+a[ií])?(?:\s+que)?|guard(?:e|a)(?:\s+a[ií])?\s+(?:que|isso)|memoriz(?:e|a)(?:\s+que)?)(?=[\s:,.!-]|$)/i;
+// "Lembra que eu falei do TRISS?" é pergunta, não memória
+const isCapture = text => REMEMBER_RE.test(text) && !/\?\s*$/.test(text);
+// wake word, com as grafias que o reconhecedor costuma inventar
+const WAKE_RE = /\b(?:jarvis|jarves|jarbis|jarviz|jarvez|djarvis|jarvi)\b/i;
+const WAKE_PREFIX_RE = /^\s*(?:(?:ei|oi|hey|ok|ô|o)\s+)?(?:jarvis|jarves|jarbis|jarviz|jarvez|djarvis|jarvi)\b[\s,:;.!?-]*/i;
+// "Jarvis, para" — só cala, não pergunta nada
+const HUSH_RE = /^\s*(?:para|pare|chega|silêncio|silencio|cala(?:\s+a\s+boca)?|quieto|calado|stop|hush|quiet|shut up|enough)\s*[.!]?\s*$/i;
+// "pesquisa X" / "research X" vão para a web; "procura/busca X" só com "na internet/web/google";
+// "pesquisa nas minhas notas" continua sendo pergunta às notas
+const RESEARCH_RE = /^\s*(?:(?:pesquis[ae]r?|research|google|look\s+up)|(?:procur[ae]r?|busc[ae]r?|search)(?=.*\b(?:internet|web|google|online|rede)\b))\b(?!\s+(?:nas?|em|in)\s+(?:minhas?\s+)?(?:notas?|anota|gal[aá]xia|my\s+notes))[\s:,.-]*(?:(?:(?:na|no|em|on|in|the)\s+)?(?:internet|web|google|rede|net|online)\s*[,:]?\s*)?(?:(?:sobre|por|about|for)\s+)?(.{3,})$/i;
+// "troca para o Haiku" / "usa o Opus" / "try on Sonnet" / só "haiku"
+const MODEL_RE = /^\s*(?:(?:troc[ae]r?|mud[ae]r?|us[ae]r?|coloc[ae]r?|põe|poe|bot[ae]r?|experiment[ae]r?|try\s+on|switch\s+to|swap\s+to|change\s+to|use)\s+(?:pra|para|pro|to|o|a|the)?\s*(?:o\s+|the\s+)?(?:modelo\s+|model\s+)?)?(haiku|sonnet|opus|fable)\s*[.!]?\s*$/i;
+// "humor em 30 por cento", "humor 100", "mais humor", "menos sarcasmo" — "me conta uma piada" não é comando
+const HUMOR_CMD_RE = /^\s*(?:(?:põe|poe|coloca|coloque|bota|deixa|ajusta|ajuste|set|turn)\s+(?:o\s+|the\s+)?)?(?:(mais|menos|more|less)\s+)?(?:humor|wit|sarcasmo|sarcasm)\b\s*(?:(?:em|para|pra|at|to|=|de)\s*)?(\d{1,3})?\s*(?:%|por\s+cento|percent)?\s*(mais|menos|up|down|pra\s+cima|pra\s+baixo)?\s*[.!]?\s*$/i;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// igual ao fold()+tokens() do build.py: minúsculas, sem acento, letras e dígitos de qualquer alfabeto
+const fold = s => String(s).toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const idOf = end => (typeof end === "object" && end !== null ? end.id : end);
+
+let LANG = "pt-BR", lg = "pt", T = STR.pt;
+let BRAIN = "none";
+
+function fatal(msg) { const f = $("fatal"); f.textContent = msg; f.classList.add("show"); }
+function setStatus(msg, isError = false) {
+  const s = $("status");
+  s.textContent = msg || "";
+  s.classList.toggle("err", !!isError);
+}
+
+/* ------------------------------------------------------------- dados ---- */
+const DATA = typeof GRAPH !== "undefined" ? GRAPH : null;
+if (!DATA) { fatal(STR.pt.noGraph); throw new Error("no graph"); }
+if (typeof ForceGraph3D === "undefined") { fatal(STR.pt.noLib); throw new Error("no lib"); }
+const META = DATA.meta || {};
+
+const nodes = DATA.nodes;                 // nodes[i].id === i
+const links = DATA.links.map(l => ({ source: l.source, target: l.target }));
+const adj = new Map(nodes.map(n => [n.id, new Set()]));
+function addAdj(s, t) { adj.get(s)?.add(t); adj.get(t)?.add(s); }
+links.forEach(l => addAdj(l.source, l.target));
+
+const byTitle = new Map();
+nodes.forEach(n => { if (!byTitle.has(fold(n.label))) byTitle.set(fold(n.label), n.id); });
+
+const PALETTE = ["#4cc9f0", "#f72585", "#ffd166", "#06d6a0", "#b388ff", "#ff9f1c", "#90e0ef", "#ef476f", "#caffbf", "#ffc6ff"];
+const groupColor = new Map();
+function colorOf(group) {
+  if (group === "captures") return "#fff1a8";
+  if (!groupColor.has(group)) groupColor.set(group, PALETTE[groupColor.size % PALETTE.length]);
+  return groupColor.get(group);
+}
+[...new Set(nodes.map(n => n.group))].sort().forEach(colorOf);
+const radius = n => 3 + Math.sqrt(adj.get(n.id)?.size || 0) * 1.6;
+
+/* ------------------------------------------------------------ three.js ---- */
+let THREE = null, UnrealBloomPass = null;
+try {
+  THREE = await import("three");
+  ({ UnrealBloomPass } = await import("three/addons/postprocessing/UnrealBloomPass.js"));
+} catch (e) {
+  console.warn("three.js extras indisponíveis — galáxia sem brilho extra", e);
+}
+
+let glowTex = null, sphereGeo = null;
+if (THREE) {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d");
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, "rgba(255,255,255,1)");
+  grd.addColorStop(0.18, "rgba(255,255,255,.55)");
+  grd.addColorStop(0.45, "rgba(255,255,255,.12)");
+  grd.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 128, 128);
+  glowTex = new THREE.CanvasTexture(c);
+  glowTex.colorSpace = THREE.SRGBColorSpace;
+  sphereGeo = new THREE.SphereGeometry(1, 24, 16);
+}
+
+function nodeObject(n) {
+  const color = new THREE.Color(colorOf(n.group));
+  const r = radius(n);
+  const obj = new THREE.Group();
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, color, transparent: true, opacity: .4, depthWrite: false, blending: THREE.AdditiveBlending }));
+  glow.scale.setScalar(r * 5.5);
+  const core = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .95 }));
+  core.scale.setScalar(r);
+  obj.add(glow, core);
+  n.__core = core; n.__glow = glow; n.__r = r;
+  return obj;
+}
+
+/* -------------------------------------------------------------- galáxia ---- */
+const HL = { nodes: new Set(), links: new Set(), focus: null };
+
+const Graph = new ForceGraph3D($("galaxy"), { controlType: "trackball" })
+  .backgroundColor("#02040a")
+  .showNavInfo(false)
+  .nodeId("id")
+  .nodeLabel(n => `<div class="tip"><b>${esc(n.label)}</b><br><span>${esc(n.group)}</span></div>`)
+  .nodeColor(n => (!HL.nodes.size || HL.nodes.has(n.id)) ? colorOf(n.group) : "#1d2433")
+  .nodeVal(n => radius(n) ** 2 / 4)
+  .nodeOpacity(.95)
+  .linkColor(l => HL.links.size ? (HL.links.has(l) ? "#ffffff" : "#141b2b") : "#3d5a8c")
+  .linkOpacity(.5)
+  .linkWidth(l => HL.links.has(l) ? .7 : 0)
+  .linkDirectionalParticles(l => HL.links.has(l) ? 3 : 0)
+  .linkDirectionalParticleWidth(1.6)
+  .linkDirectionalParticleSpeed(.007)
+  .linkDirectionalParticleColor(() => "#ffffff")
+  .warmupTicks(80)
+  .cooldownTicks(400)
+  .onNodeClick(n => { focusNode(n); })
+  .onNodeHover(n => { $("galaxy").style.cursor = n ? "pointer" : ""; })
+  .onBackgroundClick(() => { clearHighlight(); closePanel(); });
+
+if (THREE) Graph.nodeThreeObject(nodeObject);
+Graph.d3Force("charge").strength(-95);
+Graph.d3Force("link").distance(42);
+
+// Prompt 6: a memória nova nasce colada na nota-mãe e a acompanha enquanto a física se reacomoda.
+// Roda dentro da simulação e mira onde a âncora vai estar ao fim deste passo (x + vx · 0,6, o
+// decaimento padrão de velocidade), senão a estrela fica um passo atrás e "nasce" longe dela.
+function followAnchor() {
+  let list = [];
+  const force = () => {
+    const now = performance.now();
+    for (const n of list) {
+      if (!n.__followUntil) continue;
+      if (now >= n.__followUntil) { n.fx = n.fy = n.fz = undefined; n.__followUntil = 0; continue; }
+      const a = n.__anchor;
+      if (!a) continue;
+      n.fx = a.x + (a.fx == null ? (a.vx || 0) * .6 : 0) + n.__off.x;
+      n.fy = a.y + (a.fy == null ? (a.vy || 0) * .6 : 0) + n.__off.y;
+      n.fz = a.z + (a.fz == null ? (a.vz || 0) * .6 : 0) + n.__off.z;
+    }
+  };
+  force.initialize = nodes => { list = nodes; };
+  return force;
+}
+Graph.d3Force("follow", followAnchor());
+Graph.graphData({ nodes, links });
+
+setTimeout(() => {
+  if (performance.now() > flyingUntil) flyFit(1500);   // enquadra a galáxia já assentada
+  Graph.warmupTicks(0);  // daqui em diante, nó novo aparece onde nasceu (sem 80 passos de física invisíveis)
+}, 700);
+
+// céu estrelado + brilho cinematográfico
+let stars = null;
+if (THREE) {
+  const N = 4500, pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 1400 + Math.random() * 2600, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    pos.set([r * Math.sin(ph) * Math.cos(th), r * Math.sin(ph) * Math.sin(th), r * Math.cos(ph)], i * 3);
+    const t = 0.55 + Math.random() * 0.45, blue = Math.random() < .3;
+    col.set([t * (blue ? .75 : 1), t * (blue ? .85 : .95), t], i * 3);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  stars = new THREE.Points(geo, new THREE.PointsMaterial({ size: 1.3, sizeAttenuation: false, vertexColors: true,
+    transparent: true, opacity: .8, depthWrite: false }));
+  Graph.scene().add(stars);
+  // fundo pintado pela cena, não pelo clear do renderer: com pós-processamento, o clear
+  // grava a cor já convertida para sRGB no buffer linear e o preto vira azul-marinho
+  Graph.scene().background = new THREE.Color("#02040a");
+  if (UnrealBloomPass) {
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .85, .35, .1);
+    Graph.postProcessingComposer().addPass(bloom);
+  }
+}
+
+addEventListener("resize", () => Graph.width(innerWidth).height(innerHeight));
+
+/* ---------------------------------------------------- câmera e destaque ---- */
+let lastTouch = performance.now(), flyingUntil = 0;
+const IDLE_MS = 9000, DRIFT = .035; // rad/s — deriva lenta quando ninguém mexe
+["pointerdown", "wheel", "touchstart"].forEach(ev =>
+  $("galaxy").addEventListener(ev, () => { lastTouch = performance.now(); }, { passive: true }));
+
+function flyTo(n, ms = 1600) {
+  const dist = 110 + (n.__r || radius(n)) * 6;
+  const len = Math.hypot(n.x || 0, n.y || 0, n.z || 0);
+  const pos = len > 1
+    ? { x: n.x * (1 + dist / len), y: n.y * (1 + dist / len), z: n.z * (1 + dist / len) }
+    : { x: (n.x || 0), y: (n.y || 0), z: (n.z || 0) + dist };
+  flyingUntil = performance.now() + ms + 200;
+  lastTouch = performance.now();
+  Graph.cameraPosition(pos, { x: n.x || 0, y: n.y || 0, z: n.z || 0 }, ms);
+}
+function flyFit(ms = 1400, filter) {
+  flyingUntil = performance.now() + ms + 200;
+  Graph.zoomToFit(ms, 70, filter);
+}
+
+function refreshLook() {
+  const any = HL.nodes.size > 0;
+  for (const n of Graph.graphData().nodes) {
+    if (!n.__core) continue;
+    const on = !any || HL.nodes.has(n.id), focus = n.id === HL.focus;
+    n.__core.material.opacity = on ? 1 : .06;
+    n.__glow.material.opacity = on ? (focus ? .9 : any ? .55 : .4) : .02;
+    if (!n.__pulse) n.__glow.scale.setScalar(n.__r * (focus ? 8 : 5.5));
+  }
+  if (!THREE) Graph.nodeColor(Graph.nodeColor());   // sem three.js: nós padrão, só a cor muda
+  Graph.linkColor(Graph.linkColor())
+    .linkWidth(Graph.linkWidth())
+    .linkDirectionalParticles(Graph.linkDirectionalParticles());
+}
+
+function highlight(ids, focusId = null) {
+  HL.nodes = new Set(ids);
+  HL.focus = focusId;
+  HL.links = new Set(Graph.graphData().links.filter(l => {
+    const s = idOf(l.source), t = idOf(l.target);
+    return focusId !== null ? (s === focusId || t === focusId) : (HL.nodes.has(s) && HL.nodes.has(t));
+  }));
+  refreshLook();
+}
+function clearHighlight() { highlight([]); }
+
+function focusNode(n, ms) {
+  if (!n) return;
+  flyTo(n, ms);
+  highlight([n.id, ...(adj.get(n.id) || [])], n.id);
+  openPanel(n);
+}
+
+/* --------------------------------------------------------------- painel ---- */
+const WIKI_RE = /\[\[([^\[\]|#^]+)(?:[#^][^\[\]|]*)?(?:\|([^\[\]]*))?\]\]/g;
+function fmt(s) {   // markdown leve num pedaço de texto sem wikilinks
+  return esc(s)
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    .replace(/^(#{1,6}) (.*)$/gm, '<span class="h">$2</span>')
+    .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");
+}
+function renderExcerpt(text) {
+  // wikilinks são lidos no texto CRU: escapar antes transformava ' em &#39; e cortava [[Beck's triad]]
+  let out = "", from = 0;
+  for (const m of text.matchAll(WIKI_RE)) {
+    out += fmt(text.slice(from, m.index));
+    const target = m[1].trim(), shown = esc((m[2] || target).trim());
+    const id = byTitle.get(fold(target.split("/").pop()));
+    out += id !== undefined ? `<a class="wl" data-id="${id}">${shown}</a>` : `<span class="wl dead">${shown}</span>`;
+    from = m.index + m[0].length;
+  }
+  return out + fmt(text.slice(from));
+}
+function chip(n) {
+  return `<button class="chip" type="button" data-id="${n.id}"><span class="dot" style="color:${colorOf(n.group)};background:${colorOf(n.group)}"></span>${esc(n.label)}</button>`;
+}
+function openPanel(n) {
+  const rel = [...(adj.get(n.id) || [])].map(i => nodeById(i)).filter(Boolean).sort((a, b) => a.label.localeCompare(b.label));
+  $("panel-body").innerHTML =
+    `<div class="chip-group"><span class="dot" style="color:${colorOf(n.group)};background:${colorOf(n.group)}"></span>${esc(n.group)}${n.__new ? " · " + T.newMemory : ""}</div>` +
+    `<h2>${esc(n.label)}</h2><div class="path">${esc(n.path || "")}</div>` +
+    `<div class="excerpt">${renderExcerpt(n.excerpt || "")}</div>` +
+    (rel.length ? `<div class="rel"><div class="rel-title">${T.linked}</div><div class="chips">${rel.map(chip).join("")}</div></div>` : "");
+  showPanel(true);
+}
+function openCluster(ids) {
+  const list = ids.map(nodeById).filter(Boolean);
+  $("panel-body").innerHTML = `<div class="chip-group">${T.cluster(list.length)}</div>` +
+    `<div class="chips" style="margin-top:12px">${list.map(chip).join("")}</div>`;
+  showPanel(true);
+}
+function showPanel(open) {
+  $("panel").classList.toggle("open", open);
+  document.body.classList.toggle("panel-open", open);
+  if (open) $("panel").scrollTop = 0;
+}
+function closePanel() { showPanel(false); }
+const nodeById = id => Graph.graphData().nodes[id];
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-id]");
+  if (el && !el.classList.contains("dead")) focusNode(nodeById(+el.dataset.id));
+});
+$("close").addEventListener("click", () => { closePanel(); clearHighlight(); });
+
+function renderLegend() {
+  const counts = new Map();
+  Graph.graphData().nodes.forEach(n => counts.set(n.group, (counts.get(n.group) || 0) + 1));
+  $("legend").innerHTML = [...counts.keys()].sort().map(g =>
+    `<button type="button" data-group="${esc(g)}"><span class="dot" style="color:${colorOf(g)};background:${colorOf(g)}"></span>${esc(g)} · ${counts.get(g)}</button>`).join("");
+}
+$("legend").addEventListener("click", e => {
+  const b = e.target.closest("[data-group]");
+  if (!b) return;
+  const ids = Graph.graphData().nodes.filter(n => n.group === b.dataset.group).map(n => n.id);
+  highlight(ids);
+  closePanel();
+  flyFit(1200, n => ids.includes(n.id));
+});
+
+/* ----------------------------------------------------------- animação ---- */
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min((now - last) / 1000, .1);
+  last = now;
+  if (stars) stars.rotation.y += dt * .004;
+  for (const n of Graph.graphData().nodes) {          // pulso de nascimento (Prompt 6)
+    if (n.__followUntil && now >= n.__followUntil + 500) {   // rede de segurança, se a física parou antes
+      n.fx = n.fy = n.fz = undefined; n.__followUntil = 0;
+    }
+    if (!n.__pulse || !n.__glow) continue;
+    const k = (now - n.__pulse) / 1800;
+    if (k >= 1) { n.__pulse = 0; refreshLook(); continue; }
+    n.__glow.scale.setScalar(n.__r * (8 + 22 * Math.sin(Math.PI * k) * (1 - k)));
+    n.__glow.material.opacity = 1;
+  }
+  if (now - lastTouch > IDLE_MS && now > flyingUntil) { // deriva ociosa em volta do alvo
+    const cam = Graph.camera(), tgt = Graph.controls().target;
+    if (cam && tgt) {
+      const a = DRIFT * dt, dx = cam.position.x - tgt.x, dz = cam.position.z - tgt.z;
+      cam.position.x = tgt.x + dx * Math.cos(a) - dz * Math.sin(a);
+      cam.position.z = tgt.z + dx * Math.sin(a) + dz * Math.cos(a);
+      cam.lookAt(tgt);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* ---------------------------------------------------------------- voz ---- */
+let unlocked = false, pending = null, utter = null, keepAlive = null, speechText = "";
+let TTS = "browser", MODEL = null, HUMOR = null, wantHandsFree = false;
+let audioCtx = null, elAudio = null, analyser = null, ttsSeq = 0, pulseTimer = null;
+
+// vozes "de brinquedo" do macOS (Eloquence e efeitos) que aparecem como pt-BR/en-GB e soam robóticas
+const TOY_VOICES = /\b(eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|fred|kathy)\b/i;
+const GOOD_VOICES = /\b(luciana|felipe|fernanda|francisca|antonio|thiago|daniel|arthur|serena|kate|oliver|ryan|sonia|libby|google uk english male|google português do brasil)\b/i;
+
+function pickVoice() {
+  const vs = speechSynthesis.getVoices();
+  const want = LANG.toLowerCase(), base = want.slice(0, 2);
+  const norm = v => v.lang.toLowerCase().replace("_", "-");
+  const pool = vs.filter(v => norm(v) === want).length ? vs.filter(v => norm(v) === want) : vs.filter(v => norm(v).startsWith(base));
+  const score = v => (/premium|enhanced|natural|neural/i.test(v.name) ? 4 : 0)
+    + (GOOD_VOICES.test(v.name) ? 3 : 0) + (v.default ? 2 : 0) + (v.localService ? 1 : 0)
+    - (TOY_VOICES.test(v.name) ? 10 : 0);
+  return pool.sort((a, b) => score(b) - score(a))[0] || null;
+}
+
+const statusHoldsError = () => $("status").classList.contains("err");
+
+/* reator: o núcleo cresce a cada palavra falada (ou com o volume real da voz clonada) e decai sozinho */
+let pulseLevel = 0, pulseRaf = 0, pulseAt = 0;
+function pulse(amount) {
+  pulseLevel = Math.max(pulseLevel, Math.min(1, amount));
+  pulseAt = performance.now();
+  if (!pulseRaf) pulseRaf = requestAnimationFrame(pulseStep);
+}
+function pulseStep(now) {
+  pulseRaf = 0;
+  $("reactor").style.setProperty("--pulse", (1 + pulseLevel * .9).toFixed(3));
+  pulseLevel *= Math.pow(.82, Math.min(now - pulseAt, 200) / 16.7);   // decai em ~150 ms, qualquer que seja o fps
+  pulseAt = now;
+  if (pulseLevel > .02) pulseRaf = requestAnimationFrame(pulseStep);
+  else $("reactor").style.setProperty("--pulse", "1");
+}
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+// dois tons curtos: "ouvi o meu nome" (sobe) / "desarmei" (desce)
+function chime(up = true) {
+  try {
+    const ctx = ensureAudio(), t = ctx.currentTime;
+    [[up ? 660 : 520, 0], [up ? 990 : 390, .09]].forEach(([f, dt]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(.0001, t + dt);
+      g.gain.exponentialRampToValueAtTime(.12, t + dt + .02);
+      g.gain.exponentialRampToValueAtTime(.0001, t + dt + .16);
+      o.connect(g).connect(ctx.destination);
+      o.start(t + dt); o.stop(t + dt + .18);
+    });
+  } catch { /* sem áudio, sem campainha */ }
+}
+
+function startSpeaking(text) {
+  speechText = text;
+  document.body.classList.add("speaking");
+  if (!statusHoldsError()) setStatus(T.speaking);   // aviso de erro não some porque ele começou a falar
+}
+function endSpeaking() {
+  speechText = "";
+  document.body.classList.remove("speaking");
+  clearInterval(keepAlive);
+  clearInterval(pulseTimer); pulseTimer = null;
+  if ($("status").textContent === T.speaking) setStatus(handsFree ? T.handsFree : "");
+}
+function stopSpeaking() {   // interrupção ("Jarvis…" no meio da fala, ou "Jarvis, para")
+  utter = null; pending = null; ttsSeq++;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (elAudio) { elAudio.pause(); elAudio.removeAttribute("src"); }
+  endSpeaking();
+}
+
+function speak(text) {
+  // voz é enfeite: se falhar, a resposta na tela, o voo da câmera e o painel seguem normalmente
+  try { say(text); } catch (err) { console.warn("voz indisponível:", err); }
+}
+
+function say(text) {
+  if (!text) return;
+  if (!unlocked) { pending = text; return; }   // navegador bloqueia áudio antes do 1º clique
+  if (TTS === "elevenlabs") sayCloned(text);
+  else sayBrowser(text);
+}
+
+function sayBrowser(text) {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = utter = new SpeechSynthesisUtterance(text);  // referência global: o Chrome coleta e perde o onend
+  const v = pickVoice();
+  if (v) { u.voice = v; u.lang = v.lang; } else u.lang = LANG;
+  u.rate = 1.02;
+  u.pitch = .95;
+  let words = 0;
+  u.onboundary = e => { words++; pulse(.45 + Math.min(e.charLength || 5, 12) / 20); };
+  u.onstart = () => {
+    startSpeaking(text);
+    clearInterval(keepAlive);   // Chrome corta falas longas sem isso
+    keepAlive = setInterval(() => { if (speechSynthesis.speaking) { speechSynthesis.pause(); speechSynthesis.resume(); } }, 9000);
+    pulseTimer = setInterval(() => { if (!words) pulse(.3 + Math.random() * .5); }, 230);  // voz sem eventos de palavra
+  };
+  u.onend = u.onerror = () => { if (utter === u) endSpeaking(); };
+  // falar logo após cancel() às vezes é engolido; e se o microfone manual abriu nesse meio-tempo, fica calado
+  setTimeout(() => { if (utter === u && !rec) speechSynthesis.speak(u); }, 60);
+}
+
+// voz clonada (ElevenLabs) via /tts — a chave fica no servidor; o reator pulsa com o volume real
+async function sayCloned(text) {
+  const token = ++ttsSeq;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  try {
+    const res = await fetch("/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    if (token !== ttsSeq) return;   // outra fala (ou uma interrupção) passou na frente
+    if (!elAudio) elAudio = new Audio();
+    elAudio.onplay = () => { startSpeaking(text); pulseFromAudio(); };
+    elAudio.onended = elAudio.onerror = () => { if (token === ttsSeq) endSpeaking(); };
+    elAudio.src = URL.createObjectURL(blob);
+    await elAudio.play();
+  } catch (err) {
+    console.warn("voz clonada falhou, uso a do navegador:", err);
+    if (token === ttsSeq) sayBrowser(text);
+  }
+}
+function pulseFromAudio() {
+  try {
+    const ctx = ensureAudio();
+    if (!analyser) {
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      ctx.createMediaElementSource(elAudio).connect(analyser);
+      analyser.connect(ctx.destination);
+    }
+    const buf = new Uint8Array(analyser.fftSize);
+    const step = () => {
+      if (!elAudio || elAudio.paused || elAudio.ended) return;
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (const v of buf) { const d = (v - 128) / 128; sum += d * d; }
+      pulse(Math.sqrt(sum / buf.length) * 3);
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  } catch (err) { console.warn("sem analisador de áudio:", err); }
+}
+
+function unlockVoice() {
+  if (unlocked) return;
+  // Esc, Shift, Cmd+Tab e toque que vira rolagem não contam como gesto: esperar um gesto de verdade
+  if (navigator.userActivation && !navigator.userActivation.isActive) return;
+  unlocked = true;
+  $("hint").hidden = true;
+  try { ensureAudio(); } catch { /* sem WebAudio */ }
+  if ("speechSynthesis" in window) {
+    // a 1ª fala precisa nascer dentro do gesto do usuário (Safari/Chrome)
+    speechSynthesis.speak(new SpeechSynthesisUtterance(pending ? "" : " "));
+  }
+  if (pending) { const p = pending; pending = null; speak(p); }
+  if (wantHandsFree) setHandsFree(true);   // preferência salva: liga o "Jarvis…" no 1º clique
+}
+["pointerup", "touchend", "click", "keydown"].forEach(ev => addEventListener(ev, unlockVoice, { capture: true }));
+if ("speechSynthesis" in window) speechSynthesis.getVoices(); // o Chrome carrega as vozes de forma assíncrona
+
+/* ---- microfone manual (🎙): uma frase e pronto ---- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+function micError(e) {
+  setStatus(e.error === "not-allowed" ? T.micBlocked : e.error === "service-not-allowed" ? T.micService
+    : e.error === "no-speech" ? T.micNoSpeech : e.error === "network" ? T.micNetwork : "mic: " + e.error, true);
+}
+function toggleMic() {
+  if (!SR) { setStatus(T.micUnsupported, true); return; }
+  if (handsFree) { arm(); return; }        // em mãos livres, o botão faz as vezes do "Jarvis"
+  if (rec) { rec.stop(); return; }
+  stopSpeaking();                          // não escutar a própria voz
+  let finalText = "", failed = false;
+  rec = new SR();
+  rec.lang = LANG;
+  rec.interimResults = true;
+  rec.continuous = false;
+  rec.onstart = () => { $("mic").classList.add("on"); document.body.classList.add("listening"); setStatus(T.listening); };
+  rec.onresult = e => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
+    }
+    $("q").value = (finalText + interim).trim();
+  };
+  rec.onerror = e => { failed = true; micError(e); };
+  rec.onend = () => {
+    rec = null;
+    $("mic").classList.remove("on");
+    document.body.classList.remove("listening");
+    const text = (finalText || $("q").value).trim();
+    if (failed) return;
+    setStatus("");
+    if (text) submit(text);
+  };
+  try { rec.start(); } catch (err) { rec = null; setStatus(String(err), true); }
+}
+$("mic").addEventListener("click", toggleMic);
+if (!SR) $("mic").title = STR.pt.micUnsupported;
+
+/* ---- mãos livres: fica ouvindo e acorda com "Jarvis…" (e interrompe a fala com o mesmo nome) ---- */
+let ear = null, handsFree = false, armed = 0, earRestart = null;
+function setHandsFree(on) {
+  handsFree = !!on && !!SR;
+  if (on && !SR) setStatus(T.micUnsupported, true);
+  try { localStorage.setItem("jarvis.handsFree", handsFree ? "1" : "0"); } catch { /* modo privado */ }
+  $("wake").classList.toggle("on", handsFree);
+  document.body.classList.toggle("handsfree", handsFree);
+  if (handsFree) startEar(); else stopEar();
+  renderMode();
+}
+function startEar() {
+  if (ear || !handsFree) return;
+  const e = ear = new SR();
+  e.lang = LANG;
+  e.continuous = true;
+  e.interimResults = true;
+  e.onstart = () => { if (!statusHoldsError() && !busy && !speechText) setStatus(T.handsFree); };
+  e.onresult = ev => {
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const res = ev.results[i], text = (res[0].transcript || "").trim();
+      if (!text) continue;
+      const heardWake = WAKE_RE.test(text);
+      if (speechText && !heardWake) continue;            // é a minha própria voz voltando pelo microfone
+      if (speechText && heardWake) stopSpeaking();       // interrupção: "Jarvis…" no meio da fala
+      if (!res.isFinal) { if (heardWake && !armed) arm(); continue; }
+      let cmd = heardWake ? text.replace(WAKE_PREFIX_RE, "") : text;
+      if (heardWake && cmd === text) cmd = text.split(WAKE_RE).pop();   // "… Jarvis, …" no meio da frase
+      cmd = cmd.replace(/^[\s,:;.!?-]+/, "").trim();
+      if (heardWake && !cmd) { arm(); continue; }        // só "Jarvis": espera o pedido
+      if (!heardWake && !armed) continue;                // conversa de fundo, sem o nome: ignora
+      disarm();
+      if (HUSH_RE.test(cmd)) { stopSpeaking(); chime(false); setStatus(T.handsFree); continue; }
+      submit(cmd);
+    }
+  };
+  e.onerror = ev => {
+    if (ev.error === "no-speech" || ev.error === "aborted") return;   // o onend reinicia
+    micError(ev);
+    if (["not-allowed", "service-not-allowed", "network"].includes(ev.error)) setHandsFree(false);
+  };
+  e.onend = () => {                                      // o Chrome encerra a escuta contínua de tempos em tempos
+    if (ear === e) ear = null;
+    if (handsFree) earRestart = setTimeout(startEar, 300);
+  };
+  try { e.start(); } catch (err) { ear = null; setStatus(String(err), true); }
+}
+function stopEar() {
+  clearTimeout(earRestart);
+  disarm();
+  if (ear) { const e = ear; ear = null; e.onend = null; try { e.stop(); } catch { /* já parado */ } }
+  if (!busy && !statusHoldsError() && !speechText) setStatus("");
+}
+function arm() {
+  if (!handsFree) return;
+  clearTimeout(armed);
+  chime(true);
+  document.body.classList.add("armed");
+  setStatus(T.armed);
+  armed = setTimeout(() => { disarm(); chime(false); if (!busy && !speechText) setStatus(T.handsFree); }, 9000);
+}
+function disarm() { clearTimeout(armed); armed = 0; document.body.classList.remove("armed"); }
+$("wake").addEventListener("click", () => setHandsFree(!handsFree));
+
+/* ------------------------------------------------------------- cérebro ---- */
+const SID = (() => {
+  try {
+    let s = sessionStorage.getItem("jarvis.session");
+    if (!s) { s = crypto.randomUUID(); sessionStorage.setItem("jarvis.session", s); }
+    return s;
+  } catch { return "s" + Math.random().toString(36).slice(2); }
+})();
+
+async function post(url, body) {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = null;
+  try { data = await res.json(); } catch { /* corpo vazio */ }
+  if (!res.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
+  return data;
+}
+
+function showAnswer(question, answer, sourceIds = [], webSources = []) {
+  const src = sourceIds.map(nodeById).filter(Boolean);
+  const web = webSources.filter(s => s && /^https?:\/\//i.test(s.url)).map(s =>
+    `<a class="chip" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer"><span class="dot"></span>${esc(s.title || s.url)}</a>`);
+  $("answer").innerHTML = (question ? `<div class="q">${T.you}: ${esc(question)}</div>` : "") +
+    `<div class="a">${esc(answer)}</div>` +
+    (src.length ? `<div class="chips">${src.map(chip).join("")}</div>` : "") +
+    (web.length ? `<div class="srcs"><div class="t">${T.webSources}</div><div class="chips">${web.join("")}</div></div>` : "");
+  $("answer").classList.add("show");
+}
+
+let busy = false, queued = null;
+async function submit(text) {
+  text = text.replace(WAKE_PREFIX_RE, "").trim();   // "Jarvis, …" digitado também vale
+  if (!text) return;
+  if (busy) {                            // falou/digitou durante outra resposta: entra na fila
+    queued = text;
+    $("q").value = "";
+    setStatus(T.queued);
+    return;
+  }
+  busy = true;
+  $("q").value = "";
+  try {
+    const model = MODEL_RE.exec(text), humor = humorCommand(text), web = RESEARCH_RE.exec(text);
+    if (model) await settings({ model: model[1].toLowerCase() }, text);
+    else if (humor !== null) await settings({ humor }, text);
+    else if (isCapture(text)) await remember(text);
+    else if (web) await research(web[1].trim(), text);
+    else await ask(text);
+  } catch (err) {
+    const msg = String(err.message || err);
+    setStatus(/failed to fetch|networkerror|load failed/i.test(msg) ? T.noServer : msg, true);
+  } finally {
+    busy = false;
+    if (queued) { const next = queued; queued = null; submit(next); }
+    else if (handsFree && !statusHoldsError() && !speechText) setStatus(T.handsFree);
+  }
+}
+
+// "humor em 30 por cento" → 30 · "mais humor" → +25 · "menos sarcasmo" → −25 · "me conta uma piada" → null
+function humorCommand(text) {
+  const m = HUMOR_CMD_RE.exec(text);
+  if (!m) return null;
+  if (m[2]) return Math.max(0, Math.min(100, +m[2]));
+  const dir = (m[1] || m[3] || "").toLowerCase();
+  if (!dir) return null;
+  const cur = HUMOR == null ? 70 : HUMOR;
+  return Math.max(0, Math.min(100, cur + (/^(mais|more|up|pra\s+cima)$/.test(dir) ? 25 : -25)));
+}
+
+// página defasada (o servidor recarregou outra lista de notas): índices não batem mais,
+// então nada de voar nem colar nó — só responder e pedir recarga, e isso não se desfaz sozinho
+let STALE = false;
+function markStale() { STALE = true; setStatus(T.stale, true); }
+
+async function ask(question) {
+  setStatus(T.thinking);
+  const r = await post("/chat", { question, session: SID });
+  setStatus("");
+  if (STALE || (r.build_id && META.build_id && r.build_id !== META.build_id)) {
+    markStale();
+    showAnswer(question, r.answer);
+    speak(r.answer);
+    return;
+  }
+  const ids = (r.nodes || []).filter(i => nodeById(i));
+  showAnswer(r.journal ? `${question} (${T.journal(r.journal)})` : question, r.answer, ids);
+  speak(r.answer);
+  flyToSources(ids);
+}
+
+// pesquisa na web por voz: resposta curta falada, fontes clicáveis na tela, câmera parada
+async function research(query, original) {
+  setStatus(T.researching);
+  const r = await post("/research", { query, session: SID });
+  setStatus("");
+  showAnswer(original, r.answer, [], r.sources || []);
+  speak(r.answer);
+}
+
+// troca de modelo e dial de humor, por voz ou digitado
+async function settings(payload, original) {
+  setStatus(T.thinking);
+  const r = await post("/settings", payload);
+  setStatus("");
+  if (r.model) MODEL = r.model;
+  if (r.humor !== undefined) HUMOR = r.humor;
+  renderMode();
+  showAnswer(original, r.line);
+  speak(r.line);
+}
+
+// Prompt 4: a galáxia prova de onde veio a resposta
+function flyToSources(ids) {
+  if (!ids.length) return;                 // conversa fiada: a câmera fica onde está
+  if (ids.length >= 4) {                   // muitas fontes: acende o aglomerado inteiro
+    highlight(ids);
+    openCluster(ids);
+    flyFit(1600, n => ids.includes(n.id));
+    return;
+  }
+  focusNode(nodeById(ids[0]), 1800);
+}
+
+async function remember(text) {
+  setStatus(T.saving);
+  const r = await post("/remember", { text });
+  setStatus("");
+  const gd = Graph.graphData();
+  // a nota foi salva de qualquer jeito; só não dá para colar o nó numa galáxia com outros índices
+  if (STALE || r.prev_build_id !== META.build_id || r.node.id !== gd.nodes.length) {
+    markStale();
+    showAnswer(text, r.line);
+    speak(r.line);
+    return;
+  }
+  const anchor = r.anchor !== null && r.anchor !== undefined ? nodeById(r.anchor) : null;
+  const n = Object.assign({}, r.node, { __new: true });
+  const jitter = () => (Math.random() - .5) * 6;
+  const at = anchor || { x: 0, y: 0, z: 0 };
+  n.__off = { x: jitter(), y: jitter(), z: jitter() };
+  n.x = (at.x || 0) + n.__off.x; n.y = (at.y || 0) + n.__off.y; n.z = (at.z || 0) + n.__off.z;
+  n.fx = n.x; n.fy = n.y; n.fz = n.z;
+  // nasce colada na nota-mãe e a acompanha enquanto a física se reacomoda; depois se solta (tick)
+  n.__anchor = anchor;
+  n.__followUntil = performance.now() + 900;
+  const gone = new Set((r.removed || []).map(l => l.source + "-" + l.target));
+  (r.removed || []).forEach(l => { adj.get(l.source)?.delete(l.target); adj.get(l.target)?.delete(l.source); });
+  adj.set(n.id, new Set());
+  r.links.forEach(l => addAdj(l.source, l.target));
+  if (!byTitle.has(fold(n.label))) byTitle.set(fold(n.label), n.id);
+  META.build_id = r.build_id;
+  Graph.graphData({
+    nodes: [...gd.nodes, n],
+    links: [...gd.links.filter(l => !gone.has(idOf(l.source) + "-" + idOf(l.target))),
+            ...r.links.map(l => ({ source: l.source, target: l.target }))],
+  });
+  n.__pulse = performance.now();          // nasce com um pulso de luz
+  updateCount();
+  renderLegend();
+  showAnswer(text, r.line, [n.id]);
+  speak(r.line);
+  setTimeout(() => focusNode(n, 1600), 350);
+}
+
+/* ---------------------------------------------------------------- boot ---- */
+$("ask").addEventListener("submit", e => { e.preventDefault(); submit($("q").value); });
+addEventListener("keydown", e => {
+  if (e.key === "Escape") { closePanel(); clearHighlight(); }
+  if (e.key === "/" && document.activeElement !== $("q")) { e.preventDefault(); $("q").focus(); }
+});
+
+function updateCount() {
+  const gd = Graph.graphData();
+  $("count").textContent = T.count(gd.nodes.length, gd.links.length);
+}
+
+function applyLanguage(code) {
+  LANG = code || "pt-BR";
+  lg = LANG.toLowerCase().startsWith("pt") ? "pt" : "en";
+  T = STR[lg];
+  document.documentElement.lang = LANG;
+  $("q").placeholder = T.placeholder;
+  $("mic").setAttribute("aria-label", T.mic);
+  $("wake").setAttribute("aria-label", T.wake);
+  $("wake").title = T.wakeTitle;
+  $("send").setAttribute("aria-label", T.send);
+  $("close").setAttribute("aria-label", T.close);
+}
+
+function renderMode() {
+  $("mode").textContent = [MODEL ? MODEL.replace(/^claude-/, "") : null, HUMOR == null ? null : `humor ${HUMOR}%`,
+    handsFree ? T.wake.toLowerCase() : null].filter(Boolean).join(" · ");
+}
+
+// saída do briefing_command (ex.: agenda do dia) em frases faláveis
+function cleanBriefing(text) {
+  return String(text).split(/\r?\n/).map(l => l.replace(/^\s*[•·▪\-*]+\s*/, "").trim()).filter(Boolean)
+    .join("; ").replace(/\s+/g, " ").slice(0, 600);
+}
+
+(async () => {
+  let status = null;
+  try { status = await (await fetch("/api/status", { cache: "no-store" })).json(); } catch { /* sem servidor */ }
+  applyLanguage(status && status.language);
+  BRAIN = status ? status.brain : "none";
+  updateCount();
+  renderLegend();
+  if (!status) { setStatus(T.noServer, true); return; }
+  TTS = status.tts === "elevenlabs" ? "elevenlabs" : "browser";
+  MODEL = status.model || null;
+  HUMOR = typeof status.humor === "number" ? status.humor : null;
+  try { wantHandsFree = localStorage.getItem("jarvis.handsFree") === "1"; } catch { /* modo privado */ }
+  renderMode();
+  if (status.build_id && META.build_id && status.build_id !== META.build_id) markStale();
+  else if (BRAIN === "none") setStatus(T.brainOff, true);
+  const greet = T.greeting(status.notes ?? nodes.length);
+  const agenda = status.briefing ? cleanBriefing(status.briefing) : "";
+  showAnswer("", agenda ? `${greet}\n${T.agenda} ${agenda}` : greet);
+  if (!unlocked) { $("hint").textContent = T.clickToHear; $("hint").hidden = false; }
+  speak(agenda ? `${greet} ${T.agenda} ${agenda.slice(0, 400)}` : greet);
+})();
+</script>
+</body>
+</html>
