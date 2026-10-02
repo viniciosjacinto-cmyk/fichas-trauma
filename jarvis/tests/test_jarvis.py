@@ -44,6 +44,7 @@ class MockAPI:
         self.refuse = False
         self.reject_effort = False
         self.mode = None          # "cut" | "garbage" | "garbage-quip" | "incomplete-once"
+        self.reject_new_search = False   # modelo que só conhece a busca básica
         mock = self
 
         class H(BaseHTTPRequestHandler):
@@ -61,6 +62,25 @@ class MockAPI:
                     return self.reply(200, {"type": "message", "content": [], "stop_reason": "refusal",
                                             "stop_details": {"type": "refusal", "category": None}})
                 quip = "format" not in body.get("output_config", {})
+                tools = body.get("tools") or []
+                if any(str(t.get("type", "")).startswith("web_search") for t in tools):
+                    if mock.reject_new_search and tools[0]["type"] == "web_search_20260209":
+                        return self.reply(400, {"type": "error", "error": {"type": "invalid_request_error",
+                                          "message": "'claude-x' does not support tool types: web_search_20260209."}})
+                    if not any(m["role"] == "assistant" for m in body["messages"]):
+                        # 1ª rodada: a API pausou no meio da busca — o cliente reenvia e ela continua
+                        return self.reply(200, {"type": "message", "stop_reason": "pause_turn", "content": [
+                            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search",
+                             "input": {"query": "tranexamico trauma"}},
+                            {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_1", "content": [
+                                {"type": "web_search_result", "url": "https://example.org/wses", "title": "WSES guideline",
+                                 "encrypted_content": "x", "page_age": "2023"},
+                                {"type": "web_search_result", "url": "https://example.org/crash2", "title": "CRASH-2 trial",
+                                 "encrypted_content": "y", "page_age": "2010"}]}]})
+                    return self.reply(200, {"type": "message", "stop_reason": "end_turn", "content": [
+                        {"type": "text", "text": "O CRASH-2 mostrou menos mortes com tranexâmico até 3 horas, senhor.",
+                         "citations": [{"type": "web_search_result_location", "url": "https://example.org/crash2",
+                                        "title": "CRASH-2 trial", "cited_text": "...", "encrypted_index": "e"}]}]})
                 if mock.mode == "cut":        # raciocínio + resposta estouraram o max_tokens
                     return self.reply(200, {"type": "message", "stop_reason": "max_tokens", "content": [
                         {"type": "text", "text": '{"answer": "Senhor, pelos crit'}]})
@@ -470,6 +490,149 @@ class TestOptionalParams(unittest.TestCase):
             api.close()
 
 
+class TestJournalWindow(unittest.TestCase):
+    def test_windows(self):
+        import datetime as dt
+        sys.path.insert(0, str(ROOT))
+        import server
+        today = dt.date(2026, 10, 2)   # sexta-feira
+        w = lambda q: server.journal_window(q, today)
+        self.assertEqual(w("O que eu fiz na terça?")[:2], (dt.date(2026, 9, 29), dt.date(2026, 9, 29)))
+        self.assertEqual(w("resumo de ontem")[:2], (dt.date(2026, 10, 1), dt.date(2026, 10, 1)))
+        self.assertEqual(w("o que rolou semana passada")[:2], (dt.date(2026, 9, 21), dt.date(2026, 9, 27)))
+        self.assertEqual(w("o que eu perguntei dia 28")[:2], (dt.date(2026, 9, 28), dt.date(2026, 9, 28)))
+        self.assertEqual(w("what did I ask last friday")[:2], (dt.date(2026, 9, 25), dt.date(2026, 9, 25)))
+        self.assertEqual(w("o que eu fiz hoje")[:2], (today, today))
+        self.assertIsNone(w("qual a dose de hoje do tranexâmico"))      # sem intenção de diário
+        self.assertIsNone(w("o que eu fiz com o colar cervical"))        # sem data
+
+
+class TestExtras(unittest.TestCase):
+    """Pesquisa na web, troca de modelo, humor, diário, voz clonada e briefing."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.api = MockAPI()
+        cls.j = Jarvis({"api_key": KEY, "model": "claude-opus-5-5", "notes_dir": "notes", "language": "pt-BR",
+                        "api_url": cls.api.url, "briefing_command": "printf 'Reuniao 9h\\n- Plantao 19h'"})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.j.close()
+        cls.api.close()
+
+    def setUp(self):
+        self.api.requests.clear()
+        self.api.mode = None
+        self.api.reject_new_search = False
+
+    def test_research_api(self):
+        status, body = self.j.post("/research", {"query": "dose do ácido tranexâmico no trauma", "session": "r1"})
+        self.assertEqual(status, 200, body)
+        self.assertIn("CRASH-2", body["answer"])
+        self.assertEqual([s["url"] for s in body["sources"]],
+                         ["https://example.org/crash2", "https://example.org/wses"])   # citada primeiro
+        self.assertEqual(len(self.api.requests), 2)                                   # pause_turn -> reenvio
+        first, second = self.api.requests[0]["body"], self.api.requests[1]["body"]
+        self.assertEqual(first["tools"], [{"type": "web_search_20260209", "name": "web_search", "max_uses": 3}])
+        self.assertNotIn("output_config.format", json.dumps(first))
+        self.assertEqual(second["messages"][1]["role"], "assistant")
+        self.assertEqual(second["messages"][1]["content"][0]["type"], "server_tool_use")
+        self.assertIn("research", first["system"].lower())
+        # a pesquisa entra no histórico da sessão, para a pergunta seguinte fazer sentido
+        self.j.post("/chat", {"question": "e a dose?", "session": "r1"})
+        self.assertIn("[web research]", self.api.requests[-1]["body"]["messages"][0]["content"])
+
+    def test_research_falls_back_to_basic_search_tool(self):
+        self.api.reject_new_search = True
+        status, body = self.j.post("/research", {"query": "RABT score origem", "session": "r2"})
+        self.assertEqual(status, 200, body)
+        types = [r["body"]["tools"][0]["type"] for r in self.api.requests]
+        self.assertEqual(types, ["web_search_20260209", "web_search_20250305", "web_search_20250305"])
+
+    def test_settings_model_and_humor(self):
+        status, body = self.j.post("/settings", {"model": "haiku"})
+        self.assertEqual((status, body["model"]), (200, "claude-haiku-4-5"))
+        self.assertIn("Haiku", body["line"])
+        cfg = json.loads((self.j.dir / "config.json").read_text(encoding="utf-8"))
+        self.assertEqual((cfg["model"], cfg["api_key"]), ("claude-haiku-4-5", KEY))   # o resto do config fica
+        status, body = self.j.post("/settings", {"humor": 20})
+        self.assertEqual((status, body["humor"]), (200, 20))
+        self.j.post("/chat", {"question": "critérios do RABT", "session": "h1"})
+        self.assertIn("Wit dial: 20 of 100", self.api.requests[-1]["body"]["system"])
+        self.assertEqual(self.api.requests[-1]["body"]["model"], "claude-haiku-4-5")
+        self.assertEqual(self.j.post("/settings", {"model": "gpt-9"})[0], 400)
+        self.assertEqual(self.j.post("/settings", {})[0], 400)
+        self.j.post("/settings", {"model": "opus", "humor": 70})
+        info = json.loads(self.j.get("/api/status")[1])
+        self.assertEqual((info["model"], info["humor"]), ("claude-opus-5-5", 70))
+
+    def test_journal(self):
+        self.j.post("/chat", {"question": "Quais são os critérios do RABT?", "session": "j1"})
+        status, cap = self.j.post("/remember", {"text": "lembre que o carrinho de parada fica no box 3"})
+        self.assertEqual(status, 200, cap)
+        self.api.requests.clear()
+        status, body = self.j.post("/chat", {"question": "O que eu fiz hoje?", "session": "j1"})
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["journal"], "hoje")
+        self.assertEqual(body["nodes"], [cap["node"]["id"]])        # a memória do dia vira fonte
+        sent = self.api.requests[-1]["body"]
+        self.assertIn("<journal", sent["messages"][-1]["content"])
+        self.assertIn("asked: Quais são os critérios do RABT?", sent["messages"][-1]["content"])
+        self.assertIn("captured note", sent["messages"][-1]["content"])
+        self.assertNotIn("<notes>", sent["messages"][-1]["content"])
+        self.api.requests.clear()
+        status, body = self.j.post("/chat", {"question": "O que eu fiz anteontem?", "session": "j1"})
+        self.assertEqual((status, body["nodes"]), (200, []))
+        self.assertIn("Nada registrado", body["answer"])
+        self.assertEqual(self.api.requests, [])                     # dia vazio não gasta token
+
+    def test_briefing_in_status(self):
+        info = json.loads(self.j.get("/api/status")[1])
+        self.assertEqual(info["briefing"], "Reuniao 9h\n- Plantao 19h")
+        self.assertEqual(info["tts"], "browser")
+
+    def test_tts_proxy(self):
+        got = {}
+
+        class Eleven(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                got["path"] = self.path
+                got["key"] = self.headers.get("xi-api-key")
+                got["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                data = b"ID3fake-mp3-bytes"
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Eleven)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            self.assertEqual(self.j.post("/tts", {"text": "Olá"})[0], 404)      # sem chave: desligado
+            cfg = json.loads((self.j.dir / "config.json").read_text(encoding="utf-8"))
+            cfg.update(elevenlabs_api_key="el-test-key", elevenlabs_voice_id="voz123",
+                       elevenlabs_url=f"http://127.0.0.1:{httpd.server_address[1]}")
+            (self.j.dir / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+            self.assertEqual(json.loads(self.j.get("/api/status")[1])["tts"], "elevenlabs")
+            status, data = self.j.raw("POST", "/tts", json.dumps({"text": "Olá, senhor."}).encode(),
+                                      {"Content-Type": "application/json"})
+            self.assertEqual((status, data), (200, b"ID3fake-mp3-bytes"))
+            self.assertEqual(got["key"], "el-test-key")
+            self.assertTrue(got["path"].startswith("/v1/text-to-speech/voz123"))
+            self.assertEqual(got["body"]["text"], "Olá, senhor.")
+            self.assertNotIn("el-test-key", self.j.get("/")[1].decode())   # a chave não vai ao navegador
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            cfg.pop("elevenlabs_api_key"); cfg.pop("elevenlabs_voice_id"); cfg.pop("elevenlabs_url")
+            (self.j.dir / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+
+
 class TestLiveRebuild(unittest.TestCase):
     def test_build_py_while_server_runs(self):
         api = MockAPI()
@@ -506,7 +669,11 @@ for flag in {unknown!r}:          # Claude Code antigo: não conhece estas flags
     if flag in args:
         sys.stderr.write("error: unknown option '%s'\n" % flag)
         sys.exit(1)
-if "--json-schema" in args:
+if "--tools" in args and args[args.index("--tools") + 1] == "WebSearch":
+    out = {{"type": "result", "subtype": "success", "is_error": False, "result": "",
+           "structured_output": {{"answer": "Pela web, senhor.",
+                                  "sources": [{{"title": "CRASH-2", "url": "https://example.org/crash2"}}]}}}}
+elif "--json-schema" in args:
     out = {{"type": "result", "subtype": "success", "is_error": False, "result": "",
            "structured_output": {{"answer": "Pela CLI, senhor.", "sources": [1]}}}}
 else:
@@ -553,6 +720,30 @@ class TestClaudeCLI(unittest.TestCase):
         for lock in ("--tools", "--strict-mcp-config", "--system-prompt"):  # as travas ficam
             self.assertIn(lock, last)
         self.assertEqual(last[last.index("--tools") + 1], "")
+
+    def test_cli_research_and_model_swap(self):
+        tmp = Path(tempfile.mkdtemp(prefix="fake-claude-"))
+        log = tmp / "args.log"
+        exe = tmp / "claude"
+        exe.write_text(FAKE_CLAUDE.format(python=sys.executable, log=str(log), unknown=[]), encoding="utf-8")
+        exe.chmod(0o755)
+        j = Jarvis({"api_key": "PUT-YOUR-KEY-HERE", "notes_dir": "notes", "claude_command": str(exe)})
+        try:
+            status, body = j.post("/research", {"query": "CRASH-2 tranexâmico", "session": "c2"})
+            self.assertEqual(status, 200, body)
+            self.assertEqual(body["answer"], "Pela web, senhor.")
+            self.assertEqual(body["sources"], [{"title": "CRASH-2", "url": "https://example.org/crash2"}])
+            args = json.loads(log.read_text().splitlines()[-1])
+            self.assertEqual(args[args.index("--tools") + 1], "WebSearch")   # só a busca, nada local
+            self.assertIn("--strict-mcp-config", args)
+            status, body = j.post("/settings", {"model": "sonnet"})
+            self.assertEqual(status, 200, body)
+            cfg = json.loads((j.dir / "config.json").read_text(encoding="utf-8"))
+            self.assertEqual(cfg.get("cli_model"), "sonnet")                 # no claude -p vai o apelido
+            self.assertEqual(json.loads(j.get("/api/status")[1])["model"], "sonnet")
+        finally:
+            j.close()
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_cli_without_lockdown_flag_is_refused(self):
         status, body, calls, g = self.run_with(unknown=["--tools"])

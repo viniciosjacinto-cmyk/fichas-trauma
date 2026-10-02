@@ -60,6 +60,22 @@ CLI_LOCKS = {"--tools", "--strict-mcp-config"}
 # onde o instalador do Claude Code costuma pôr o comando, para quando ele não está no PATH
 CLAUDE_PLACES = ("~/.claude/local/claude", "~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude")
 
+# pesquisa na web: ferramenta do lado do servidor da API (com filtragem dinâmica nos modelos novos)
+WEB_SEARCH_NEW = "web_search_20260209"
+WEB_SEARCH_BASIC = "web_search_20250305"
+BASIC_SEARCH_MODELS = ("haiku", "opus-4-5", "sonnet-4-5", "opus-4-1", "-3-")
+MAX_SEARCHES = 3       # buscas por pergunta (cada busca tem custo próprio na API)
+MAX_SOURCES = 6
+# troca de modelo por voz: apelido -> id na API; no `claude -p` o apelido vai direto
+MODEL_ALIASES = {"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5",
+                 "fable": "claude-fable-5-1"}
+HUMOR_DEFAULT = 70
+HISTORY = build.ROOT / "history.jsonl"   # diário local do que foi perguntado, pesquisado e lembrado
+HISTORY_MAX = 5000
+ELEVEN_URL = "https://api.elevenlabs.io"
+ELEVEN_MODEL = "eleven_multilingual_v2"
+BRIEFING_TTL = 600     # s de cache da saída do briefing_command
+
 TOP_K = 6              # notas enviadas ao modelo por pergunta
 NOTE_CHARS = 8000      # teto de cada nota dentro do prompt
 HISTORY_TURNS = 6      # trocas lembradas por sessão, para perguntas de seguimento
@@ -95,6 +111,27 @@ REMEMBER_RE = re.compile(
     r"(?=[\s:,.!-]|$)[\s:,.!-]*",
     re.I,
 )
+
+MODEL_LINES = {
+    "pt": {"haiku": "Trocando para o Haiku, senhor. Mais rápido, menos cerimônia.",
+           "sonnet": "Sonnet a postos, senhor. O equilíbrio é uma virtude.",
+           "opus": "Opus de volta, senhor. Pensamento profundo, preço idem.",
+           "fable": "Fable, senhor. O melhor que a casa tem; use com parcimônia."},
+    "en": {"haiku": "Switching to Haiku, sir. Faster, less ceremony.",
+           "sonnet": "Sonnet at your service, sir. Balance is a virtue.",
+           "opus": "Opus is back, sir. Deep thought, deep pockets.",
+           "fable": "Fable, sir. The best the house has; use sparingly."},
+}
+HUMOR_LINES = {
+    "pt": lambda h: ("Humor a zero, senhor. Serei um relógio suíço." if h == 0 else
+                     f"Humor em {h} por cento, senhor. {'Prepare-se.' if h >= 80 else 'Anotado.'}"),
+    "en": lambda h: ("Wit at zero, sir. I shall be a Swiss watch." if h == 0 else
+                     f"Wit at {h} percent, sir. {'Brace yourself.' if h >= 80 else 'Noted.'}"),
+}
+EMPTY_JOURNAL = {
+    "pt": lambda d: f"Nada registrado em {d}, senhor. Ou o senhor não falou comigo, ou eu fui discreto demais.",
+    "en": lambda d: f"Nothing on record for {d}, sir. Either you didn't speak to me, or I was far too discreet.",
+}
 
 CANNED = {
     "pt": [
@@ -193,17 +230,126 @@ def pick_backend(cfg):
     return "api" if has_key else ("cli" if has_cli else None)
 
 
+def humor_of(cfg):
+    try:
+        return max(0, min(100, int(cfg.get("humor", HUMOR_DEFAULT))))
+    except (TypeError, ValueError):
+        return HUMOR_DEFAULT
+
+
 def persona(cfg):
     _, info, _ = lang_of(cfg)
+    humor = humor_of(cfg)
+    dial = ("Wit dial: 0 of 100. No jokes, no flourishes: answer like a terse, courteous clerk."
+            if humor == 0 else
+            f"Wit dial: {humor} of 100 (0 = strictly factual, 100 = maximum dry wit). Calibrate the humor to it; "
+            "the facts never change with the dial.")
     return (
         "You are J.A.R.V.I.S., the voice of the user's personal knowledge base: their own markdown notes, "
         "which they see on screen as a 3D galaxy of stars.\n\n"
         "Persona: a dry, impeccably polite British butler with a razor wit. Address the user as "
         f"\"{info['sir']}\" occasionally, not in every sentence. One genuinely funny line beats three bland ones. "
-        "Never gush, never grovel.\n\n"
+        f"Never gush, never grovel. {dial}\n\n"
         f"Always reply in {info['name']}. Your reply is spoken aloud by a speech synthesizer, so write plain "
         "sentences: no markdown, no lists, no emoji, no note numbers."
     )
+
+
+def research_prompt(cfg):
+    return persona(cfg) + (
+        "\n\nThe user asked you to research something on the web. Search (at most a few queries), then answer "
+        "in two or three spoken sentences: the finding first, then where it comes from, naming the source "
+        "(publication or site), never reading URLs aloud. If sources disagree or the evidence is thin, say so. "
+        "Medical topics: state the figure and its source; never present a guess as a guideline."
+    )
+
+
+def journal_prompt(cfg):
+    return persona(cfg) + (
+        "\n\nThe user is asking what they did, asked or noted on a given day. Inside <journal> is the log of "
+        "that day: questions they asked you, answers, web research and notes they captured by voice. "
+        "Summarize it in two or three spoken sentences, most important first, in character. Only what is in "
+        "the journal; if it is thin, say so."
+    )
+
+
+# -------------------------------------------------- diário / máquina do tempo ----
+
+WEEKDAYS = {"segunda": 0, "terca": 1, "quarta": 2, "quinta": 3, "sexta": 4, "sabado": 5, "domingo": 6,
+            "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6}
+JOURNAL_INTENT = re.compile(
+    r"\b(fiz|fizemos|falei|falamos|perguntei|anotei|lembrei|pesquisei|conversamos|disse|rolou|aconteceu|"
+    r"resumo|resume|resumir|maquina do tempo|did i|was i|i asked|i noted|we talked|happened|recap|time machine)\b")
+
+
+def journal_window(question, today=None):
+    """(início, fim, rótulo) do dia ou semana que a pergunta cita — ou None se não é pergunta de diário."""
+    import datetime as dt
+    today = today or dt.date.today()
+    q = build.fold(question)
+    if not JOURNAL_INTENT.search(q):
+        return None
+    if re.search(r"\b(hoje|today)\b", q):
+        return today, today, "hoje"
+    if re.search(r"\b(anteontem)\b", q):
+        d = today - dt.timedelta(days=2)
+        return d, d, "anteontem"
+    if re.search(r"\b(ontem|yesterday)\b", q):
+        d = today - dt.timedelta(days=1)
+        return d, d, "ontem"
+    if re.search(r"\b(semana passada|last week)\b", q):
+        start = today - dt.timedelta(days=today.weekday() + 7)
+        return start, start + dt.timedelta(days=6), "semana passada"
+    if re.search(r"\b(esta semana|essa semana|this week)\b", q):
+        return today - dt.timedelta(days=today.weekday()), today, "esta semana"
+    m = re.search(r"\b(segunda|terca|quarta|quinta|sexta|sabado|domingo|monday|tuesday|wednesday|thursday|"
+                  r"friday|saturday|sunday)\b", q)
+    if m:
+        wd = WEEKDAYS[m.group(1)]
+        back = (today.weekday() - wd) % 7
+        if back == 0 and re.search(r"\b(passad[ao]|ultim[ao]|last)\b", q):
+            back = 7
+        d = today - dt.timedelta(days=back)
+        return d, d, m.group(1)
+    m = re.search(r"\bdia (\d{1,2})\b", q)
+    if m:
+        day = int(m.group(1))
+        y, mo = today.year, today.month
+        if day > today.day:  # "dia 28" dito no dia 3: mês passado
+            mo, y = (12, y - 1) if mo == 1 else (mo - 1, y)
+        try:
+            d = dt.date(y, mo, day)
+        except ValueError:
+            return None
+        return d, d, f"dia {day}"
+    return None
+
+
+def read_history():
+    try:
+        lines = HISTORY.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out = []
+    for line in lines:
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            pass
+    return out
+
+
+def model_alias(name):
+    """'haiku' -> id da API; id completo passa como está; outra coisa -> None."""
+    key = (name or "").strip().lower()
+    if key in MODEL_ALIASES:
+        return key, MODEL_ALIASES[key]
+    for alias, mid in MODEL_ALIASES.items():
+        if key == mid:
+            return alias, mid
+    if re.fullmatch(r"claude-[a-z0-9.-]{3,60}", key):
+        return key.split("-")[1], key
+    return None, None
 
 
 def system_prompt(cfg):
@@ -321,6 +467,37 @@ def retryable(e):
         return not (e.retry_after and e.retry_after > 10)  # espera longa pedida pela API: desiste e avisa
     m = e.message.lower()
     return e.status == 0 and "timed out" not in m and any(t in m for t in TRANSIENT)
+
+
+def eleven_ready(cfg):
+    key, voice = cfg.get("elevenlabs_api_key"), cfg.get("elevenlabs_voice_id")
+    return bool(key and voice and str(key).strip() and "PUT-" not in str(key))
+
+
+def harvest_sources(content):
+    """Fontes nos blocos de resultado da busca e nas citações dos blocos de texto."""
+    out = []
+    for block in content:
+        if block.get("type") == "web_search_tool_result":
+            items = block.get("content")
+            if isinstance(items, list):   # erro vem como objeto, não lista
+                for it in items:
+                    if isinstance(it, dict) and it.get("url"):
+                        out.append({"title": str(it.get("title") or it["url"])[:120], "url": str(it["url"])[:500]})
+        elif block.get("type") == "text":
+            for c in block.get("citations") or []:
+                if isinstance(c, dict) and c.get("url"):
+                    out.append({"title": str(c.get("title") or c["url"])[:120], "url": str(c["url"])[:500], "cited": True})
+    return out
+
+
+def dedupe_sources(sources):
+    seen, out = set(), []
+    for s in sorted(sources, key=lambda s: not s.get("cited")):  # citadas primeiro
+        if s["url"] not in seen:
+            seen.add(s["url"])
+            out.append({"title": s["title"], "url": s["url"]})
+    return out[:MAX_SOURCES]
 
 
 def friendly_api_error(e, model):
@@ -449,10 +626,208 @@ class Brain:
         self.sync(cfg)
         backend = pick_backend(cfg)
         code, _, _ = lang_of(cfg)
+        model = cfg.get("model") if backend == "api" else (cfg.get("cli_model") or "claude-code") if backend else None
         with self.lock:
             return {"notes": len(self.notes), "links": len(self.links), "language": code,
-                    "brain": backend or "none", "model": cfg.get("model") if backend == "api" else None,
-                    "build_id": self.build_id}
+                    "brain": backend or "none", "model": model, "humor": humor_of(cfg),
+                    "tts": "elevenlabs" if eleven_ready(cfg) else "browser",
+                    "briefing": self.briefing(cfg), "build_id": self.build_id}
+
+    # ---- diário local (máquina do tempo)
+    def log_event(self, kind, **fields):
+        entry = dict(ts=time.strftime("%Y-%m-%dT%H:%M:%S"), kind=kind, **fields)
+        try:
+            with self.lock:
+                with open(HISTORY, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                if sum(1 for _ in open(HISTORY, encoding="utf-8")) > HISTORY_MAX * 1.2:
+                    keep = read_history()[-HISTORY_MAX:]
+                    HISTORY.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in keep), encoding="utf-8")
+        except OSError as e:
+            print(f"Aviso: não gravei no diário: {e}", file=sys.stderr)
+
+    def journal(self, cfg, backend, question, window, build_id):
+        start, end, label = window
+        _, _, lg = lang_of(cfg)
+        entries = [e for e in read_history() if start.isoformat() <= e.get("ts", "")[:10] <= end.isoformat()]
+        if not entries:
+            return {"answer": EMPTY_JOURNAL[lg](label), "nodes": [], "build_id": build_id, "journal": label}
+        lines, nodes = [], []
+        by_path = {n["path"]: i for i, n in enumerate(self.notes)}
+        for e in entries[-60:]:
+            stamp = e["ts"][11:16] if end == start else e["ts"][5:16].replace("T", " ")
+            if e["kind"] == "chat":
+                lines.append(f"[{stamp}] asked: {e.get('q', '')} -> answer: {e.get('a', '')}")
+            elif e["kind"] == "research":
+                lines.append(f"[{stamp}] web research: {e.get('q', '')} -> {e.get('a', '')}")
+            elif e["kind"] == "capture":
+                lines.append(f"[{stamp}] captured note \"{e.get('title', '')}\": {e.get('text', '')}")
+                if e.get("path") in by_path and by_path[e["path"]] not in nodes:
+                    nodes.append(by_path[e["path"]])
+            elif e["kind"] == "settings":
+                lines.append(f"[{stamp}] changed setting: {e.get('what', '')}")
+        block = "<journal day=\"" + esc_attr(label) + "\">\n" + "\n".join(lines)[:12000] + "\n</journal>"
+        msgs = [{"role": "user", "content": block + "\n\nQuestion: " + question}]
+        try:
+            text = self.ask(cfg, backend, journal_prompt(cfg), msgs, None)
+        except Refusal:
+            return {"answer": REFUSAL_LINE[lg], "nodes": [], "build_id": build_id}
+        answer = parse_reply(text)[0] if str(text).lstrip().startswith("{") else str(text).strip()
+        if not answer:
+            raise BrainError("O modelo não devolveu uma resposta utilizável. Tente de novo.", 502)
+        return {"answer": answer, "nodes": nodes[:MAX_SOURCES], "build_id": build_id, "journal": label}
+
+    # ---- /research: pesquisa na web por voz
+    def research(self, query, sid):
+        query = (query or "").strip()[:1000]
+        if not query:
+            raise BrainError("Pesquisar o quê, exatamente?", 400)
+        cfg = self.config()
+        backend = self.backend(cfg)
+        _, _, lg = lang_of(cfg)
+        try:
+            if backend == "api":
+                answer, sources = self.research_api(cfg, query)
+            else:
+                answer, sources = self.research_cli(cfg, query)
+        except Refusal:
+            return {"answer": REFUSAL_LINE[lg], "sources": []}
+        if not answer:
+            raise BrainError("A pesquisa não devolveu uma resposta utilizável. Tente de novo.", 502)
+        with self.lock:
+            sess = self.session(sid)
+            sess["turns"].append((f"[web research] {query}", answer))
+            sess["seen"] = time.time()
+        self.log_event("research", q=query, a=answer, sources=[s["url"] for s in sources])
+        return {"answer": answer, "sources": sources}
+
+    def research_api(self, cfg, query):
+        key, _ = api_key(cfg)
+        model = str(cfg.get("model") or build.DEFAULT_CONFIG["model"])
+        basic = any(mark in model for mark in BASIC_SEARCH_MODELS)
+        headers = {"content-type": "application/json", "x-api-key": key, "anthropic-version": API_VERSION}
+        messages = [{"role": "user", "content": query}]
+        sources, answer = [], ""
+        # "low" às vezes responde de cabeça sem buscar; pesquisa merece um degrau a mais
+        effort = str(cfg.get("research_effort") or "medium")
+        for hop in range(6):  # a API pausa a cada 10 iterações internas: reenvia e ela continua
+            tool = {"type": WEB_SEARCH_BASIC if basic else WEB_SEARCH_NEW, "name": "web_search", "max_uses": MAX_SEARCHES}
+            body = {"model": model, "max_tokens": 16000, "system": research_prompt(cfg), "tools": [tool],
+                    "messages": messages}
+            if effort and not basic:
+                body["output_config"] = {"effort": effort}
+            try:
+                data = http_post_json(cfg.get("api_url") or API_URL, body, headers, 150)
+            except ApiError as e:
+                msg = e.message.lower()
+                if e.status == 400 and not basic and WEB_SEARCH_NEW in msg:
+                    basic = True  # modelo que só conhece a busca básica
+                    continue
+                if e.status == 400 and effort and "effort" in msg:
+                    effort = ""   # modelo sem o parâmetro: segue sem ele
+                    continue
+                if e.status == 400 and "web_search" in msg:
+                    raise BrainError("A busca na web não está habilitada para esta chave. No console da Anthropic: "
+                                     "Settings → Privacy → Web search.") from None
+                raise BrainError(friendly_api_error(e, model)) from None
+            if data.get("stop_reason") == "refusal":
+                raise Refusal()
+            content = data.get("content") or []
+            sources += harvest_sources(content)
+            answer = "".join(b.get("text", "") for b in content if b.get("type") == "text").strip()
+            if data.get("stop_reason") != "pause_turn":
+                break
+            messages = [{"role": "user", "content": query}, {"role": "assistant", "content": content}]
+        return answer, dedupe_sources(sources)
+
+    def research_cli(self, cfg, query):
+        schema = {"type": "object", "properties": {
+            "answer": {"type": "string"},
+            "sources": {"type": "array", "items": {"type": "object", "properties": {
+                "title": {"type": "string"}, "url": {"type": "string"}},
+                "required": ["title", "url"], "additionalProperties": False}}},
+            "required": ["answer", "sources"], "additionalProperties": False}
+        prompt = (query + "\n\nUse the WebSearch tool, then reply with JSON {\"answer\": <two or three spoken "
+                  "sentences>, \"sources\": [{\"title\", \"url\"}]} listing the pages you actually used.")
+        out = self.call_cli(cfg, research_prompt(cfg), [{"role": "user", "content": prompt}], schema,
+                            300, tools="WebSearch")
+        answer, _ = parse_reply(out)
+        sources = []
+        if isinstance(out, dict):
+            for s in out.get("sources") or []:
+                if isinstance(s, dict) and str(s.get("url", "")).startswith("http"):
+                    sources.append({"title": str(s.get("title") or s["url"])[:120], "url": str(s["url"])[:500]})
+        return answer, dedupe_sources(sources)
+
+    # ---- /settings: troca de modelo e dial de humor, por voz
+    def settings(self, body):
+        cfg = self.config()
+        _, _, lg = lang_of(cfg)
+        changed, lines = {}, []
+        if body.get("model") is not None:
+            alias, mid = model_alias(str(body["model"]))
+            if not mid:
+                raise BrainError(f"Modelo desconhecido: {body['model']}", 400)
+            if pick_backend(cfg) == "cli":
+                cfg["cli_model"] = alias if alias in MODEL_ALIASES else mid
+            else:
+                cfg["model"] = mid
+                self.dropped.pop(mid, None)
+            changed["model"] = mid
+            lines.append(MODEL_LINES[lg].get(alias, f"{mid}, {'senhor' if lg == 'pt' else 'sir'}."))
+        if body.get("humor") is not None:
+            try:
+                h = max(0, min(100, int(body["humor"])))
+            except (TypeError, ValueError):
+                raise BrainError("Humor vai de 0 a 100.", 400) from None
+            cfg["humor"] = h
+            changed["humor"] = h
+            lines.append(HUMOR_LINES[lg](h))
+        if not changed:
+            raise BrainError("Nada para mudar.", 400)
+        build.save_config(cfg)
+        self.log_event("settings", what=", ".join(f"{k}={v}" for k, v in changed.items()))
+        return dict(changed, line=" ".join(lines))
+
+    # ---- /tts: voz clonada (ElevenLabs), opcional — a chave fica no servidor
+    def tts(self, text):
+        cfg = self.config()
+        if not eleven_ready(cfg):
+            raise BrainError("Voz ElevenLabs não configurada (elevenlabs_api_key e elevenlabs_voice_id).", 404)
+        text = (text or "").strip()[:1500]
+        if not text:
+            raise BrainError("Nada para falar.", 400)
+        url = (f"{cfg.get('elevenlabs_url') or ELEVEN_URL}/v1/text-to-speech/"
+               f"{urllib.parse.quote(str(cfg['elevenlabs_voice_id']))}?output_format=mp3_44100_128")
+        body = json.dumps({"text": text, "model_id": cfg.get("elevenlabs_model") or ELEVEN_MODEL}).encode("utf-8")
+        req = urllib.request.Request(url, data=body, method="POST", headers={
+            "xi-api-key": str(cfg["elevenlabs_api_key"]), "content-type": "application/json", "accept": "audio/mpeg"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.read(), r.headers.get("content-type") or "audio/mpeg"
+        except urllib.error.HTTPError as e:
+            raise BrainError(f"ElevenLabs recusou ({e.code}): {e.read().decode('utf-8', 'replace')[:200]}", 502) from None
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
+            raise BrainError(f"ElevenLabs fora de alcance: {getattr(e, 'reason', e)}", 502) from None
+
+    # ---- briefing opcional: saída de um comando local (ex.: agenda do dia via icalBuddy)
+    def briefing(self, cfg):
+        cmd = cfg.get("briefing_command")
+        if not cmd:
+            return None
+        with self.lock:
+            cached = getattr(self, "_briefing", None)
+            if cached and cached[0] == cmd and time.time() - cached[1] < BRIEFING_TTL:
+                return cached[2]
+        try:
+            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10, cwd=self.cwd)
+            text = (proc.stdout or "").strip() or (proc.stderr or "").strip()[:200]
+        except (subprocess.TimeoutExpired, OSError) as e:
+            text = f"(briefing falhou: {e})"
+        text = re.sub(r"[ \t]+", " ", text)[:1500]
+        with self.lock:
+            self._briefing = (cmd, time.time(), text)
+        return text
 
     # ---- /chat
     def chat(self, question, sid):
@@ -462,6 +837,16 @@ class Brain:
         cfg = self.config()
         backend = self.backend(cfg)
         self.sync(cfg)
+        window = journal_window(question)
+        if window:  # "o que eu fiz na terça?": responde pelo diário, não pelas notas
+            with self.lock:
+                build_id = self.build_id
+            out = self.journal(cfg, backend, question, window, build_id)
+            with self.lock:
+                sess = self.session(sid)
+                sess["turns"].append((question, out["answer"]))
+                sess["seen"] = time.time()
+            return out
         with self.lock:
             sess = self.session(sid)
             scores = self.score(question)
@@ -486,6 +871,7 @@ class Brain:
         with self.lock:
             sess["turns"].append((question, answer))
             sess["seen"] = time.time()
+        self.log_event("chat", q=question, a=answer, nodes=nodes)
         return {"answer": answer, "nodes": nodes, "build_id": build_id}
 
     # ---- /remember
@@ -527,6 +913,7 @@ class Brain:
             node = build.node_payload(idx, note)
             build_id = self.build_id
         line = self.quip(cfg, fact, title)
+        self.log_event("capture", title=title, text=fact[:500], path=note["path"])
         return {"node": node, "links": added, "removed": removed, "anchor": anchor, "line": line,
                 "prev_build_id": prev_build_id, "build_id": build_id, "path": note["path"]}
 
@@ -617,7 +1004,7 @@ class Brain:
                                  "Tente de novo, ou baixe o 'effort' em config.json.")
             return "".join(b.get("text", "") for b in data.get("content") or [] if b.get("type") == "text")
 
-    def call_cli(self, cfg, system, messages, schema, timeout):
+    def call_cli(self, cfg, system, messages, schema, timeout, tools=""):
         exe = claude_exe(cfg)
         if not exe:
             raise BrainError("Comando `claude` não encontrado no PATH.", 503)
@@ -630,7 +1017,8 @@ class Brain:
         prompt = history + messages[-1]["content"]
         # flag -> valor (None = flag sem valor). As duas travas fazem do `claude -p` um chat puro:
         # sem ferramentas e sem servidores MCP, uma nota maliciosa não tem com o que agir.
-        flags = [("--system-prompt", system), ("--tools", ""), ("--strict-mcp-config", None),
+        # tools="" = chat puro; tools="WebSearch" = só a busca na web do Claude Code (nada local)
+        flags = [("--system-prompt", system), ("--tools", tools), ("--strict-mcp-config", None),
                  ("--no-session-persistence", None), ("--disable-slash-commands", None)]
         if schema:
             flags.append(("--json-schema", json.dumps(schema)))
@@ -762,7 +1150,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         route = self.path.split("?", 1)[0]
-        if route not in ("/chat", "/remember"):
+        if route not in ("/chat", "/remember", "/research", "/settings", "/tts"):
             return self.send_json(404, {"error": "rota inexistente"})
         if not (self.host_ok() and self.origin_ok()):
             return self.send_json(403, {"error": "origem não permitida"})
@@ -789,6 +1177,20 @@ class Handler(SimpleHTTPRequestHandler):
                 if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", sid):
                     sid = "anon"
                 return self.send_json(200, brain.chat(str(body.get("question") or ""), sid))
+            if route == "/research":
+                sid = str(body.get("session") or "")
+                if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", sid):
+                    sid = "anon"
+                return self.send_json(200, brain.research(str(body.get("query") or ""), sid))
+            if route == "/settings":
+                return self.send_json(200, brain.settings(body))
+            if route == "/tts":
+                audio, ctype = brain.tts(str(body.get("text") or ""))
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(audio)))
+                self.end_headers()
+                return self.wfile.write(audio)
             return self.send_json(200, brain.remember(str(body.get("text") or "")))
         except BrainError as e:
             return self.send_json(e.status, {"error": str(e)})

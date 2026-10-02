@@ -7,3 +7,5 @@ viewer/graph-data.js.tmp
 # memórias capturadas por voz nas notas de exemplo
 notes/captures/
 __pycache__/
+# diário local do que foi perguntado e lembrado
+history.jsonl

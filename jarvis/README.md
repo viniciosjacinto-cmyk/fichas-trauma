@@ -66,6 +66,33 @@ Regras de indexação:
 5. Diga **Me conta uma piada**. Ele responde no personagem e a câmera não se move.
 6. Diga **Lembre que prompt packs são ótimos presentes**. Nasce uma estrela nova em `captures`, a câmera voa até ela e ele confirma com uma frase. O arquivo aparece em `notes/captures/`.
 7. Clique num grupo da legenda, no canto inferior esquerdo: o grupo inteiro acende. Esc limpa o destaque.
+8. Clique no 👂. Sem tocar em nada, diga **"Jarvis, qual a janela do ácido tranexâmico?"**. Enquanto ele responde, diga **"Jarvis"**: ele cala no ato.
+9. Diga **"Jarvis, pesquisa na internet qual a dose de ácido tranexâmico no trauma"**. A resposta vem falada e as fontes aparecem como links.
+10. Diga **"Jarvis, troca para o Haiku"** e depois **"Jarvis, o que eu fiz hoje?"**.
+
+## Os extras — o JARVIS do vídeo
+
+Tudo o que o autor do pack mostrou no vídeo e deixou de fora dos 6 prompts, menos o que precisa de conta paga (ver abaixo).
+
+| Diga (ou digite) | O que acontece |
+|---|---|
+| **👂 Mãos livres** (botão ao lado do 🎙) | Ele fica ouvindo. Diga **"Jarvis"** e o pedido, sem clicar em nada: *"Jarvis, quais os critérios do RABT?"*. Só "Jarvis" arma (toca uma campainha, status "● às ordens") e ele espera o pedido por 9 s. Conversa de fundo sem o nome é ignorada. A preferência fica salva. |
+| **"Jarvis"** no meio da fala dele | Interrompe na hora. *"Jarvis, para"* (ou *chega*, *silêncio*) só cala. |
+| **"Pesquisa na internet …"** / *"procura …"* / *"research …"* | Pesquisa na web (busca da própria API da Anthropic, ou a do Claude Code), responde em 2–3 frases faladas e mostra as fontes clicáveis na tela. A câmera não se move. Cada pesquisa custa à parte na API (hoje, US$ 10 por mil buscas, mais os tokens); confira no console. |
+| **"Troca para o Haiku"** / *"usa o Opus"* / *"Sonnet"* / *"Fable"* | Troca o modelo na hora e grava em `config.json`. Com `claude -p`, troca o modelo do Claude Code. |
+| **"Humor em 30 por cento"** / *"mais humor"* / *"menos sarcasmo"* | Dial de personalidade estilo TARS, de 0 (relógio suíço) a 100. Fica salvo. |
+| **"O que eu fiz na terça?"** / *"resumo de ontem"* / *"o que eu perguntei dia 28"* | Máquina do tempo: ele guarda um diário local (`history.jsonl`, fora do git) do que você perguntou, pesquisou e lembrou, e resume o dia. As memórias daquele dia viram fontes na galáxia. |
+| Reator no canto superior esquerdo | Pulsa a cada palavra que ele fala; fica vermelho ouvindo, âmbar armado, pontilhado em mãos livres. Com a voz clonada, pulsa com o volume real. |
+
+A linha pequena sob o nome mostra o modelo, o humor e se as mãos livres estão ligadas.
+
+### Precisam de conta: deixei preparado, você decide
+
+**Voz clonada (ElevenLabs).** Em `config.json`, acrescente `elevenlabs_api_key` e `elevenlabs_voice_id` (o ID de uma voz da sua conta). O servidor passa a gerar o áudio e o navegador só toca: a chave não sai do servidor. Sem isso, vale a voz do sistema. *Não testei com uma chave real*, só contra um simulador: se o ElevenLabs mudar a API, o JARVIS cai de volta para a voz do sistema e avisa no console do navegador.
+
+**Briefing da agenda ao abrir.** Em `config.json`, `briefing_command` com um comando do seu Mac que imprima o dia. Para o Calendário do macOS, sem login em nada: `brew install ical-buddy` e `"briefing_command": "icalBuddy -n -nc -ea -b '' eventsToday"`. O JARVIS lê a saída depois da saudação ("Na agenda de hoje: …"). Gmail precisaria de OAuth; não fiz.
+
+**O que não fiz, de propósito:** controle do Mac por voz, leitura da tela e "mãos de agente" (mandar e-mail etc.). Dão para fazer, mas um agente com acesso ao seu Mac lendo notas arbitrárias precisa de uma conversa sobre o que ele pode e não pode tocar.
 
 ## config.json
 
@@ -80,12 +107,16 @@ Regras de indexação:
 | `port` | `4700` | Porta local. |
 | `cli_model` | — | Modelo do `claude -p` (`sonnet`, `opus`…). Vazio = o padrão do seu Claude Code. |
 | `claude_command` | — | Caminho completo do `claude`, se ele não for achado sozinho (aceita `~`). |
+| `humor` | `70` | Dial de personalidade, 0–100. Também por voz: "humor em 30". |
+| `elevenlabs_api_key`, `elevenlabs_voice_id` | — | Voz clonada. Opcional: `elevenlabs_model` (padrão `eleven_multilingual_v2`). |
+| `briefing_command` | — | Comando local cuja saída vira o briefing falado ao abrir (ex.: `icalBuddy … eventsToday`). |
 
 ## Segurança e privacidade
 
 - A chave fica só no servidor. Não aparece no navegador, no HTML nem em nenhum arquivo servido. O servidor entrega **apenas** a pasta `viewer/`.
 - O servidor escuta só em `127.0.0.1` e recusa pedidos vindos de outros sites (checa `Host`, `Origin` e `Sec-Fetch-Site`). Outra página aberta no navegador não consegue embutir `graph-data.js` para ler os trechos das notas (`Cross-Origin-Resource-Policy: same-origin`).
-- `config.json`, `viewer/graph-data.js` e `notes/captures/` estão no `.gitignore`. A chave e as suas notas não vão parar no GitHub por engano.
+- `config.json`, `viewer/graph-data.js`, `notes/captures/` e `history.jsonl` estão no `.gitignore`. A chave, as suas notas e o diário não vão parar no GitHub por engano.
+- Em mãos livres, o Chrome manda o áudio do microfone para o reconhecimento de voz do Google o tempo todo (é assim que o `webkitSpeechRecognition` funciona). Desligue o 👂 na sala de trauma.
 - **A cada pergunta, as 6 notas mais relevantes são enviadas à API da Anthropic** (ou ao Claude Code). Não indexe notas com identificação de paciente.
 
 ## Problemas comuns
@@ -112,7 +143,7 @@ Regras de indexação:
 python3 -m unittest discover tests -v
 ```
 
-São 24 testes, só biblioteca padrão; passam no Python 3.9 do Mac e no 3.11. Usam uma API falsa da Anthropic e um `claude` falso, então não gastam token. Cobrem:
+São 32 testes, só biblioteca padrão; passam no Python 3.9 do Mac e no 3.11. Usam uma API falsa da Anthropic e um `claude` falso, então não gastam token. Cobrem:
 
 - o formato da galáxia e pastas de notas problemáticas (BOM, cp1252, atalho quebrado, cabeçalho vazio, wikilink com pasta, siglas);
 - o servidor entregando só `viewer/`, com as travas contra outros sites;
@@ -120,7 +151,8 @@ São 24 testes, só biblioteca padrão; passam no Python 3.9 do Mac e no 3.11. U
 - o formato do pedido à API, resposta cortada, resposta quebrada e conexão interrompida;
 - histórico, recusa e parâmetros que o modelo não aceita (e que voltam depois de corrigidos);
 - `/remember`, títulos, ligações removidas e o `build.py` rodando com o servidor no ar;
-- o caminho `claude -p`, inclusive com Claude Code antigo.
+- o caminho `claude -p`, inclusive com Claude Code antigo;
+- pesquisa na web (API com `pause_turn` e busca básica; CLI com `--tools WebSearch`), troca de modelo, humor, diário, voz clonada e briefing.
 
 ## Arquivos
 
