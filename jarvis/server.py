@@ -14,6 +14,7 @@ Cérebro: API da Anthropic com a chave de config.json (ou ANTHROPIC_API_KEY). Se
 usa `claude -p` — a assinatura do Claude Code —, se o comando existir. Só biblioteca padrão.
 """
 
+import http.client
 import json
 import math
 import os
@@ -27,6 +28,7 @@ import threading
 import time
 import traceback
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import deque
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -46,6 +48,17 @@ OPTIONAL_PARAMS = (
     ("effort", ("effort",)),
     ("format", ("output_config.format", "json_schema", "structured output")),
 )
+
+# limite de saída e paciência por nível de raciocínio — o raciocínio conta dentro do max_tokens
+MAX_TOKENS = {"xhigh": 64000, "max": 64000, "high": 32000}
+SLOW_EFFORTS = {"high", "xhigh", "max"}
+# falhas de rede que valem uma nova tentativa (timeout não: a API pode estar gerando e cobrando)
+TRANSIENT = ("connection reset", "connection refused", "connection aborted", "remote end closed",
+             "broken pipe", "incomplete", "eof occurred")
+# sem estas o `claude -p` vira um agente com ferramentas lendo suas notas: não roda sem elas
+CLI_LOCKS = {"--tools", "--strict-mcp-config"}
+# onde o instalador do Claude Code costuma pôr o comando, para quando ele não está no PATH
+CLAUDE_PLACES = ("~/.claude/local/claude", "~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude")
 
 TOP_K = 6              # notas enviadas ao modelo por pergunta
 NOTE_CHARS = 8000      # teto de cada nota dentro do prompt
@@ -74,7 +87,7 @@ REPLY_SCHEMA = {
 # "lembre que…", "lembre-se de que…", "anota aí…", "remember that…" — com ou sem "Jarvis," antes
 REMEMBER_RE = re.compile(
     r"^\s*(?:jarvis[\s,:;.!-]*)?"
-    r"(?:remember(?:\s+that)?"
+    r"(?:remember\s+that"
     r"|lembr(?:e|a|ar)(?:[-\s]se)?(?:\s+de)?\s+que"
     r"|anot(?:e|a|ar)(?:\s+a[ií])?(?:\s+que)?"
     r"|guard(?:e|a)(?:\s+a[ií])?\s+(?:que|isso)"
@@ -122,6 +135,13 @@ class Refusal(Exception):
     """stop_reason "refusal": o classificador de segurança recusou (e o fallback também)."""
 
 
+class UnknownFlag:
+    """`claude -p` antigo recusou uma flag."""
+
+    def __init__(self, flag):
+        self.flag = flag
+
+
 # --------------------------------------------------------------- utilidades ----
 
 def lang_of(cfg):
@@ -150,7 +170,16 @@ def api_key(cfg):
 
 
 def claude_exe(cfg):
-    return shutil.which(str(cfg.get("claude_command") or "claude"))
+    chosen = cfg.get("claude_command")
+    found = shutil.which(os.path.expanduser(str(chosen or "claude")))
+    if found or chosen:
+        return found
+    # alias do instalador antigo, ou Claude Code instalado depois que este terminal abriu
+    for place in CLAUDE_PLACES:
+        place = os.path.expanduser(place)
+        if os.path.isfile(place) and os.access(place, os.X_OK):
+            return place
+    return None
 
 
 def pick_backend(cfg):
@@ -212,7 +241,8 @@ def notes_block(picked, notes):
 
 
 def parse_reply(reply):
-    """(answer, sources) a partir do JSON estruturado — ou, se vier texto solto, o texto inteiro."""
+    """(answer, sources) a partir do JSON estruturado — ou, se vier texto solto, o texto inteiro.
+    JSON quebrado vira resposta vazia: melhor um erro claro do que ler chaves e aspas em voz alta."""
     obj = reply
     if isinstance(reply, str):
         obj = None
@@ -224,7 +254,7 @@ def parse_reply(reply):
                 except ValueError:
                     pass
         if not isinstance(obj, dict):
-            return reply.strip(), []
+            return ("" if reply.lstrip().startswith("{") else reply.strip()), []
     answer = str(obj.get("answer") or "").strip()
     sources = []
     for s in obj.get("sources") or []:
@@ -236,11 +266,18 @@ def parse_reply(reply):
 
 
 def make_title(fact):
-    words = re.findall(r"[\w'’-]+", fact)
-    title = " ".join(words[:6])[:60].strip(" -'’")
+    """Primeiras palavras da primeira frase, sem terminar em "de", "a", "is"… e sem estragar
+    maiúsculas de propósito (iMIST-AMBO, pH, iPad)."""
+    first = re.split(r"[.?!;:](?:\s|$)|\n", fact, maxsplit=1)[0]   # "7.2" e "7,2" não cortam a frase
+    words = re.findall(r"[\w'’-]+(?:[.,]\d+)*", first)[:6]
+    while len(words) > 2 and build.fold(words[-1]) in build.STOPWORDS:
+        words.pop()
+    title = " ".join(words)[:60].strip(" -'’")
     if not title:
-        title = time.strftime("Captura %Y-%m-%d %H%M")
-    return title[0].upper() + title[1:]
+        return time.strftime("Captura %Y-%m-%d %H%M")
+    if words and words[0].islower():
+        title = title[0].upper() + title[1:]
+    return title
 
 
 def safe_filename(title):
@@ -252,7 +289,17 @@ def http_post_json(url, body, headers, timeout):
     req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read().decode("utf-8"))
+            raw = r.read()
+        data = json.loads(raw.decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("resposta JSON sem objeto")
+        return data
+    except ValueError:
+        # 200 que não é JSON: proxy, portal de rede, api_url errada
+        raise ApiError(-1, "a API devolveu algo que não é JSON (confira a rede ou o api_url)") from None
+    except http.client.HTTPException as e:
+        # conexão caiu no meio da resposta (IncompleteRead)
+        raise ApiError(0, f"resposta interrompida (incomplete): {e!r}"[:300]) from None
     except urllib.error.HTTPError as e:
         raw = e.read().decode("utf-8", "replace")
         try:
@@ -269,8 +316,17 @@ def http_post_json(url, body, headers, timeout):
         raise ApiError(0, str(getattr(e, "reason", e))) from None
 
 
+def retryable(e):
+    if e.status in (408, 429, 500, 502, 503, 504, 529):
+        return not (e.retry_after and e.retry_after > 10)  # espera longa pedida pela API: desiste e avisa
+    m = e.message.lower()
+    return e.status == 0 and "timed out" not in m and any(t in m for t in TRANSIENT)
+
+
 def friendly_api_error(e, model):
     s = e.status
+    if s == -1:
+        return f"Resposta inválida da API: {e.message}."
     if s == 0:
         hint = (" — no Mac com Python do python.org, rode 'Install Certificates.command' na pasta do Python."
                 if "CERTIFICATE_VERIFY_FAILED" in e.message else "")
@@ -284,7 +340,8 @@ def friendly_api_error(e, model):
     if s == 404:
         return f"Modelo '{model}' não encontrado (404). Confira 'model' em config.json."
     if s == 429:
-        return "Limite de uso da API atingido (429). Tente de novo em instantes."
+        wait = f" em {int(e.retry_after)} s" if e.retry_after else " em instantes"
+        return f"Limite de uso da API atingido (429). Tente de novo{wait}."
     if s >= 500:
         return f"API sobrecarregada ou fora do ar ({s}). Tente de novo."
     return f"A API recusou o pedido ({s}): {e.message}"
@@ -297,11 +354,37 @@ class Brain:
         self.lock = threading.RLock()
         self.sessions = {}
         self.dropped = {}        # modelo -> parâmetros opcionais que a API recusou para ele
-        self.cli_minimal = False  # Claude Code antigo, sem as flags novas
+        self.cli_unknown = set()  # flags que o Claude Code instalado (antigo) não conhece
         self.cwd = tempfile.mkdtemp(prefix="jarvis-")  # `claude -p` roda longe de qualquer CLAUDE.md
-        self.notes_dir = build.notes_path(cfg)
-        self.notes, self.links = build.build(self.notes_dir)
+        self.load(build.notes_path(cfg))
+
+    def load(self, notes_dir):
+        self.notes_dir = notes_dir
+        self.notes, self.links = build.build(notes_dir)
         self.index_all()
+        self.graph_mtime = self.graph_stamp()
+
+    @staticmethod
+    def graph_stamp():
+        try:
+            return build.GRAPH_JS.stat().st_mtime_ns
+        except OSError:
+            return None
+
+    def sync(self, cfg):
+        """Rodou `build.py` com o servidor no ar (outra pasta, ou notas novas)? Recarrega sem reiniciar."""
+        want = build.notes_path(cfg)
+        with self.lock:
+            if want == self.notes_dir and self.graph_stamp() == self.graph_mtime:
+                return
+            if not want.is_dir():
+                return  # caminho inválido no config: segue com o que já está carregado
+            try:
+                self.load(want)
+            except build.NotesError as e:
+                print(f"Aviso: não recarreguei as notas: {e}", file=sys.stderr)
+                return
+            print(f"Notas recarregadas: {len(self.notes)} de {want}", file=sys.stderr)
 
     # ---- índice de palavras-chave
     def index_all(self):
@@ -337,7 +420,9 @@ class Brain:
     def most_related(self, text):
         """Nota mais parecida — mas só se dividir 2+ termos ou um termo do título.
         Uma palavra solta em comum ("presente" de presente e "presente" de achado) não é parentesco."""
-        terms = set(query_terms(text))
+        # termo presente em mais da metade das notas não conta como parentesco
+        common = max(1, len(self.notes) // 2)
+        terms = {q for q in query_terms(text) if len(self.postings.get(q, {})) <= common}
         scores = self.score(text)
         ok = [i for i in scores
               if len({q for q in terms if i in self.postings.get(q, {})}) >= 2
@@ -361,6 +446,7 @@ class Brain:
             cfg = build.load_config()
         except ValueError:
             cfg = dict(build.DEFAULT_CONFIG)
+        self.sync(cfg)
         backend = pick_backend(cfg)
         code, _, _ = lang_of(cfg)
         with self.lock:
@@ -375,6 +461,7 @@ class Brain:
             raise BrainError("Pergunta vazia.", 400)
         cfg = self.config()
         backend = self.backend(cfg)
+        self.sync(cfg)
         with self.lock:
             sess = self.session(sid)
             scores = self.score(question)
@@ -391,7 +478,7 @@ class Brain:
         except Refusal:
             return {"answer": REFUSAL_LINE[lang_of(cfg)[2]], "nodes": [], "build_id": build_id}
         if not answer:
-            raise BrainError("O modelo respondeu vazio. Tente de novo.", 502)
+            raise BrainError("O modelo não devolveu uma resposta utilizável (vazia ou cortada). Tente de novo.", 502)
         nodes = []
         for s in sources:
             if 1 <= s <= len(picked) and picked[s - 1] not in nodes:
@@ -404,12 +491,11 @@ class Brain:
     # ---- /remember
     def remember(self, text):
         cfg = self.config()
+        self.sync(cfg)
         code, info, lg = lang_of(cfg)
         fact = REMEMBER_RE.sub("", (text or "").strip(), count=1).strip()[:4000]
         if not fact:
             raise BrainError("Lembrar o quê, exatamente?" if lg == "pt" else "Remember what, exactly?", 400)
-        if fact[0].islower():
-            fact = fact[0].upper() + fact[1:]
         title = make_title(fact)
         captures = self.notes_dir / "captures"
         with self.lock:
@@ -427,18 +513,22 @@ class Brain:
             path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
             note = build.load_note(path, self.notes_dir)
+            prev_build_id = self.build_id  # o navegador confere: só cola o nó novo se estava em dia
             idx = len(self.notes)
             self.notes.append(note)
             self.index_note(idx, note)
             before = {(l["source"], l["target"]) for l in self.links}
             self.links = build.build_links(self.notes)
-            new_links = [l for l in self.links if (l["source"], l["target"]) not in before]
+            after = {(l["source"], l["target"]) for l in self.links}
+            added = [{"source": a, "target": b} for a, b in sorted(after - before)]
+            removed = [{"source": a, "target": b} for a, b in sorted(before - after)]
             build.write_graph(self.notes, self.links, self.notes_dir)
+            self.graph_mtime = self.graph_stamp()
             node = build.node_payload(idx, note)
             build_id = self.build_id
         line = self.quip(cfg, fact, title)
-        return {"node": node, "links": new_links, "anchor": anchor, "line": line,
-                "build_id": build_id, "path": note["path"]}
+        return {"node": node, "links": added, "removed": removed, "anchor": anchor, "line": line,
+                "prev_build_id": prev_build_id, "build_id": build_id, "path": note["path"]}
 
     def quip(self, cfg, fact, title):
         _, info, lg = lang_of(cfg)
@@ -448,13 +538,14 @@ class Brain:
                       f"\"{title}\":\n\n{fact}\n\nConfirm it out loud in ONE short witty sentence "
                       f"(at most 20 words), in {info['name']}. Plain text only.")
             try:
+                # frase decorativa: uma tentativa só e prazo curto — a nota já está salva
                 text = self.ask(cfg, backend, persona(cfg), [{"role": "user", "content": prompt}], None,
-                                timeout=25 if backend == "api" else 60)
+                                timeout=20 if backend == "api" else 60, retries=0)
                 text = parse_reply(text)[0] if text.lstrip().startswith("{") else text.strip()
                 if text:
                     return text
-            except (BrainError, Refusal):
-                pass
+            except Exception as e:  # qualquer falha aqui não pode desfazer a memória gravada
+                print(f"Aviso: frase de confirmação falhou ({e}); uso uma pronta.", file=sys.stderr)
         return random.choice(CANNED[lg])
 
     # ---- modelo
@@ -471,28 +562,31 @@ class Brain:
                              "(ou instale o Claude Code para usar `claude -p`).", 503)
         return backend
 
-    def ask(self, cfg, backend, system, messages, schema, timeout=None):
+    def ask(self, cfg, backend, system, messages, schema, timeout=None, retries=2):
+        slow = cfg.get("effort", "low") in SLOW_EFFORTS
         if backend == "api":
-            return self.call_api(cfg, system, messages, schema, timeout or 90)
-        return self.call_cli(cfg, system, messages, schema, timeout or 180)
+            return self.call_api(cfg, system, messages, schema, timeout or (240 if slow else 90), retries)
+        return self.call_cli(cfg, system, messages, schema, timeout or (300 if slow else 180))
 
-    def call_api(self, cfg, system, messages, schema, timeout):
+    def call_api(self, cfg, system, messages, schema, timeout, retries):
         key, _ = api_key(cfg)
         model = str(cfg.get("model") or build.DEFAULT_CONFIG["model"])
         dropped = self.dropped.setdefault(model, set())
         effort = cfg.get("effort", "low")
-        retries = 0
+        # a recusa fica presa ao VALOR: corrigir um effort digitado errado volta a valer sem reiniciar
+        flags = {"format": "format", "effort": f"effort={effort}", "fallbacks": "fallbacks"}
+        attempt = 0
         while True:
-            body = {"model": model, "max_tokens": 16000, "system": system, "messages": messages}
+            body = {"model": model, "max_tokens": MAX_TOKENS.get(effort, 16000), "system": system, "messages": messages}
             headers = {"content-type": "application/json", "x-api-key": key, "anthropic-version": API_VERSION}
             output_config = {}
-            if schema and "format" not in dropped:
+            if schema and flags["format"] not in dropped:
                 output_config["format"] = {"type": "json_schema", "schema": schema}
-            if effort and "effort" not in dropped:
+            if effort and flags["effort"] not in dropped:
                 output_config["effort"] = effort  # resposta curta: pouco raciocínio, menos espera
             if output_config:
                 body["output_config"] = output_config
-            if model in FALLBACK_MODELS and "fallbacks" not in dropped:
+            if model in FALLBACK_MODELS and flags["fallbacks"] not in dropped:
                 body["fallbacks"] = "default"
                 headers["anthropic-beta"] = FALLBACK_BETA
             sent = {f for f, on in (("format", "format" in output_config), ("effort", "effort" in output_config),
@@ -506,16 +600,21 @@ class Brain:
                     feature = next((f for f, marks in OPTIONAL_PARAMS
                                     if f in sent and any(m in msg for m in marks)), None)
                     if feature:
-                        dropped.add(feature)
+                        dropped.add(flags[feature])
+                        print(f"Aviso: {model} recusou '{flags[feature]}'; sigo sem ele. ({e.message[:160]})",
+                              file=sys.stderr)
                         continue
                     raise BrainError(friendly_api_error(e, model)) from None
-                if e.status in (0, 408, 429, 500, 502, 503, 504, 529) and retries < 2:
-                    retries += 1
-                    time.sleep(min(e.retry_after or 1.5 * retries, 8))
+                if attempt < retries and retryable(e):
+                    attempt += 1
+                    time.sleep(e.retry_after or 1.5 * attempt)
                     continue
                 raise BrainError(friendly_api_error(e, model)) from None
             if data.get("stop_reason") == "refusal":
                 raise Refusal()
+            if data.get("stop_reason") == "max_tokens":
+                raise BrainError("A resposta estourou o limite de tamanho (max_tokens). "
+                                 "Tente de novo, ou baixe o 'effort' em config.json.")
             return "".join(b.get("text", "") for b in data.get("content") or [] if b.get("type") == "text")
 
     def call_cli(self, cfg, system, messages, schema, timeout):
@@ -529,23 +628,32 @@ class Brain:
                 lines.append(("User: " if m["role"] == "user" else "JARVIS: ") + m["content"])
             history = "Earlier in this conversation:\n" + "\n".join(lines) + "\n\nNow:\n"
         prompt = history + messages[-1]["content"]
-        args = [exe, "-p", "--output-format", "json"]
-        if not self.cli_minimal:
-            rich = args + ["--system-prompt", system, "--tools", "", "--no-session-persistence",
-                           "--strict-mcp-config", "--disable-slash-commands"]
-            if schema:
-                rich += ["--json-schema", json.dumps(schema)]
-            if cfg.get("effort", "low"):
-                rich += ["--effort", str(cfg.get("effort", "low"))]
-            if cfg.get("cli_model"):
-                rich += ["--model", str(cfg["cli_model"])]
-            out = self.run_cli(rich, prompt, timeout)
-            if out is not None:
+        # flag -> valor (None = flag sem valor). As duas travas fazem do `claude -p` um chat puro:
+        # sem ferramentas e sem servidores MCP, uma nota maliciosa não tem com o que agir.
+        flags = [("--system-prompt", system), ("--tools", ""), ("--strict-mcp-config", None),
+                 ("--no-session-persistence", None), ("--disable-slash-commands", None)]
+        if schema:
+            flags.append(("--json-schema", json.dumps(schema)))
+        if cfg.get("effort", "low"):
+            flags.append(("--effort", str(cfg.get("effort", "low"))))
+        if cfg.get("cli_model"):
+            flags.append(("--model", str(cfg["cli_model"])))
+        while True:
+            usable = [(f, v) for f, v in flags if f not in self.cli_unknown]
+            args = [exe, "-p", "--output-format", "json"]
+            for f, v in usable:
+                args += [f] if v is None else [f, v]
+            text = prompt if "--system-prompt" in dict(usable) else system + "\n\n" + prompt
+            out = self.run_cli(args, text, timeout)
+            if not isinstance(out, UnknownFlag):
                 return out
-            self.cli_minimal = True  # versão antiga do Claude Code: cai para o mínimo
-        return self.run_cli(args, system + "\n\n" + prompt, timeout, minimal=True)
+            if out.flag in CLI_LOCKS or out.flag not in dict(flags) or out.flag in self.cli_unknown:
+                raise BrainError(f"Seu Claude Code não reconhece {out.flag}. Atualize com `claude update` "
+                                 "(ou cole uma API key em config.json).", 503)
+            self.cli_unknown.add(out.flag)  # versão antiga: tira só esta flag e lembra
+            print(f"Aviso: o Claude Code instalado não conhece {out.flag}; sigo sem ela.", file=sys.stderr)
 
-    def run_cli(self, args, prompt, timeout, minimal=False):
+    def run_cli(self, args, prompt, timeout):
         try:
             proc = subprocess.run(args, input=prompt, capture_output=True, text=True,
                                   timeout=timeout, cwd=self.cwd)
@@ -554,8 +662,9 @@ class Brain:
         except OSError as e:
             raise BrainError(f"Não consegui executar `claude`: {e}") from None
         err = (proc.stderr or "").strip()
-        if proc.returncode != 0 and not minimal and "unknown option" in err.lower():
-            return None
+        unknown = re.search(r"unknown option '?(--[\w-]+)", err, re.I)
+        if proc.returncode != 0 and unknown:
+            return UnknownFlag(unknown.group(1))
         try:
             env = json.loads(proc.stdout)
         except ValueError:
@@ -566,6 +675,8 @@ class Brain:
                 if "login" in detail.lower():
                     detail += " (rode `claude` uma vez no terminal e faça login)"
                 raise BrainError("`claude -p` falhou: " + detail)
+            if env.get("stop_reason") == "refusal":
+                raise Refusal()
             if isinstance(env.get("structured_output"), dict):
                 return env["structured_output"]
             return str(env.get("result") or "")
@@ -578,6 +689,7 @@ class Brain:
 
 class Handler(SimpleHTTPRequestHandler):
     server_version = "JARVIS/1.0"
+    timeout = 30  # cliente que trava no meio do pedido não segura uma thread para sempre
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(build.VIEWER), **kwargs)
@@ -585,6 +697,8 @@ class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        # outra página aberta no navegador não pode embutir graph-data.js e ler os trechos das notas
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         super().end_headers()
 
     def log_request(self, code="-", size="-"):
@@ -619,19 +733,24 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def foreign_load(self):
+        """Script/fetch disparado por OUTRO site (Sec-Fetch-Site). Abrir um link continua valendo."""
+        site = self.headers.get("Sec-Fetch-Site")
+        return site in ("cross-site", "same-site") and self.headers.get("Sec-Fetch-Mode") != "navigate"
+
     def static_ok(self):
-        if not self.host_ok():
+        if not self.host_ok() or self.foreign_load():
             self.send_error(403)
             return False
-        path = self.path.split("?", 1)[0]
-        if any(part.startswith(".") for part in path.split("/") if part):
+        path = urllib.parse.unquote(self.path.split("?", 1)[0])  # /%2EDS_Store também é oculto
+        if any(part.startswith(".") for part in path.replace("\\", "/").split("/") if part):
             self.send_error(404)
             return False
         return True
 
     def do_GET(self):
         if self.path.split("?", 1)[0] == "/api/status":
-            if not self.host_ok():
+            if not self.host_ok() or self.foreign_load():
                 return self.send_error(403)
             return self.send_json(200, self.server.brain.status())
         if self.static_ok():
@@ -652,7 +771,9 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
-            length = 0
+            length = -1
+        if length < 0:
+            return self.send_json(400, {"error": "Content-Length inválido"})
         if length > MAX_BODY:
             return self.send_json(413, {"error": "pedido grande demais"})
         try:
@@ -689,7 +810,10 @@ def main():
         sys.exit(f"Pasta de notas não encontrada: {notes_dir}\n"
                  "Aponte para a sua: python3 build.py /caminho/da/pasta")
 
-    brain = Brain(cfg)
+    try:
+        brain = Brain(cfg)
+    except build.NotesError as e:
+        sys.exit(f"Erro: {e}")
     port = int(os.environ.get("JARVIS_PORT") or cfg.get("port") or 4700)
     try:
         server = ThreadingHTTPServer(("127.0.0.1", port), Handler)

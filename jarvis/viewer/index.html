@@ -163,6 +163,8 @@ const STR = {
     clickToHear: "clique em qualquer lugar para ligar a voz",
     micUnsupported: "Reconhecimento de voz: use Chrome ou Edge.",
     micBlocked: "Microfone bloqueado: cadeado na barra de endereço → Microfone → Permitir.",
+    micService: "Reconhecimento de voz indisponível. Safari: ative o Ditado (Ajustes do Sistema → Teclado → Ditado). Chrome: cadeado na barra de endereço → Microfone → Permitir.",
+    queued: "● na fila — respondo assim que terminar a anterior…",
     micNoSpeech: "Não ouvi nada. Tente de novo.",
     micNetwork: "O reconhecimento de voz do Chrome precisa de internet.",
     count: (n, l) => `${n} ${n === 1 ? "nota" : "notas"} · ${l} ${l === 1 ? "ligação" : "ligações"}`,
@@ -183,6 +185,8 @@ const STR = {
     clickToHear: "click anywhere to switch the voice on",
     micUnsupported: "Speech recognition needs Chrome or Edge.",
     micBlocked: "Microphone blocked: lock icon in the address bar → Microphone → Allow.",
+    micService: "Speech recognition unavailable. Safari: turn on Dictation (System Settings → Keyboard → Dictation). Chrome: lock icon → Microphone → Allow.",
+    queued: "● queued — I'll get to it right after this one…",
     micNoSpeech: "I didn't catch anything. Try again.",
     micNetwork: "Chrome's speech recognition needs an internet connection.",
     count: (n, l) => `${n} ${n === 1 ? "note" : "notes"} · ${l} ${l === 1 ? "link" : "links"}`,
@@ -206,11 +210,14 @@ function dayPart(lg) {
 }
 
 // mesma regra do server.py: frases que viram nota nova em vez de pergunta
-const REMEMBER_RE = /^\s*(?:jarvis[\s,:;.!-]*)?(?:remember(?:\s+that)?|lembr(?:e|a|ar)(?:[-\s]se)?(?:\s+de)?\s+que|anot(?:e|a|ar)(?:\s+a[ií])?(?:\s+que)?|guard(?:e|a)(?:\s+a[ií])?\s+(?:que|isso)|memoriz(?:e|a)(?:\s+que)?)(?=[\s:,.!-]|$)/i;
+const REMEMBER_RE = /^\s*(?:jarvis[\s,:;.!-]*)?(?:remember\s+that|lembr(?:e|a|ar)(?:[-\s]se)?(?:\s+de)?\s+que|anot(?:e|a|ar)(?:\s+a[ií])?(?:\s+que)?|guard(?:e|a)(?:\s+a[ií])?\s+(?:que|isso)|memoriz(?:e|a)(?:\s+que)?)(?=[\s:,.!-]|$)/i;
+// "Lembra que eu falei do TRISS?" é pergunta, não memória
+const isCapture = text => REMEMBER_RE.test(text) && !/\?\s*$/.test(text);
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const fold = s => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+// igual ao fold()+tokens() do build.py: minúsculas, sem acento, letras e dígitos de qualquer alfabeto
+const fold = s => String(s).toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const idOf = end => (typeof end === "object" && end !== null ? end.id : end);
 
 let LANG = "pt-BR", lg = "pt", T = STR.pt;
@@ -315,9 +322,34 @@ const Graph = new ForceGraph3D($("galaxy"), { controlType: "trackball" })
 if (THREE) Graph.nodeThreeObject(nodeObject);
 Graph.d3Force("charge").strength(-95);
 Graph.d3Force("link").distance(42);
+
+// Prompt 6: a memória nova nasce colada na nota-mãe e a acompanha enquanto a física se reacomoda.
+// Roda dentro da simulação e mira onde a âncora vai estar ao fim deste passo (x + vx · 0,6, o
+// decaimento padrão de velocidade), senão a estrela fica um passo atrás e "nasce" longe dela.
+function followAnchor() {
+  let list = [];
+  const force = () => {
+    const now = performance.now();
+    for (const n of list) {
+      if (!n.__followUntil) continue;
+      if (now >= n.__followUntil) { n.fx = n.fy = n.fz = undefined; n.__followUntil = 0; continue; }
+      const a = n.__anchor;
+      if (!a) continue;
+      n.fx = a.x + (a.fx == null ? (a.vx || 0) * .6 : 0) + n.__off.x;
+      n.fy = a.y + (a.fy == null ? (a.vy || 0) * .6 : 0) + n.__off.y;
+      n.fz = a.z + (a.fz == null ? (a.vz || 0) * .6 : 0) + n.__off.z;
+    }
+  };
+  force.initialize = nodes => { list = nodes; };
+  return force;
+}
+Graph.d3Force("follow", followAnchor());
 Graph.graphData({ nodes, links });
 
-setTimeout(() => { if (performance.now() > flyingUntil) flyFit(1500); }, 700); // enquadra a galáxia já assentada
+setTimeout(() => {
+  if (performance.now() > flyingUntil) flyFit(1500);   // enquadra a galáxia já assentada
+  Graph.warmupTicks(0);  // daqui em diante, nó novo aparece onde nasceu (sem 80 passos de física invisíveis)
+}, 700);
 
 // céu estrelado + brilho cinematográfico
 let stars = null;
@@ -401,16 +433,24 @@ function focusNode(n, ms) {
 }
 
 /* --------------------------------------------------------------- painel ---- */
-function renderExcerpt(text) {
-  return esc(text)
+const WIKI_RE = /\[\[([^\[\]|#^]+)(?:[#^][^\[\]|]*)?(?:\|([^\[\]]*))?\]\]/g;
+function fmt(s) {   // markdown leve num pedaço de texto sem wikilinks
+  return esc(s)
     .replace(/`([^`\n]+)`/g, "<code>$1</code>")
     .replace(/^(#{1,6}) (.*)$/gm, '<span class="h">$2</span>')
-    .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
-    .replace(/\[\[([^\]|#^]+)(?:[#^][^\]|]*)?(?:\|([^\]]*))?\]\]/g, (m, target, alias) => {
-      const shown = (alias || target).trim();
-      const id = byTitle.get(fold(target.split("/").pop()));
-      return id !== undefined ? `<a class="wl" data-id="${id}">${shown}</a>` : `<span class="wl dead">${shown}</span>`;
-    });
+    .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");
+}
+function renderExcerpt(text) {
+  // wikilinks são lidos no texto CRU: escapar antes transformava ' em &#39; e cortava [[Beck's triad]]
+  let out = "", from = 0;
+  for (const m of text.matchAll(WIKI_RE)) {
+    out += fmt(text.slice(from, m.index));
+    const target = m[1].trim(), shown = esc((m[2] || target).trim());
+    const id = byTitle.get(fold(target.split("/").pop()));
+    out += id !== undefined ? `<a class="wl" data-id="${id}">${shown}</a>` : `<span class="wl dead">${shown}</span>`;
+    from = m.index + m[0].length;
+  }
+  return out + fmt(text.slice(from));
 }
 function chip(n) {
   return `<button class="chip" type="button" data-id="${n.id}"><span class="dot" style="color:${colorOf(n.group)};background:${colorOf(n.group)}"></span>${esc(n.label)}</button>`;
@@ -466,6 +506,9 @@ function tick(now) {
   last = now;
   if (stars) stars.rotation.y += dt * .004;
   for (const n of Graph.graphData().nodes) {          // pulso de nascimento (Prompt 6)
+    if (n.__followUntil && now >= n.__followUntil + 500) {   // rede de segurança, se a física parou antes
+      n.fx = n.fy = n.fz = undefined; n.__followUntil = 0;
+    }
     if (!n.__pulse || !n.__glow) continue;
     const k = (now - n.__pulse) / 1800;
     if (k >= 1) { n.__pulse = 0; refreshLook(); continue; }
@@ -488,51 +531,64 @@ requestAnimationFrame(tick);
 /* ---------------------------------------------------------------- voz ---- */
 let unlocked = false, pending = null, utter = null, keepAlive = null;
 
+// vozes "de brinquedo" do macOS (Eloquence e efeitos) que aparecem como pt-BR/en-GB e soam robóticas
+const TOY_VOICES = /\b(eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|fred|kathy)\b/i;
+const GOOD_VOICES = /\b(luciana|felipe|fernanda|francisca|antonio|thiago|daniel|arthur|serena|kate|oliver|ryan|sonia|libby|google uk english male|google português do brasil)\b/i;
+
 function pickVoice() {
   const vs = speechSynthesis.getVoices();
   const want = LANG.toLowerCase(), base = want.slice(0, 2);
   const norm = v => v.lang.toLowerCase().replace("_", "-");
   const pool = vs.filter(v => norm(v) === want).length ? vs.filter(v => norm(v) === want) : vs.filter(v => norm(v).startsWith(base));
   const score = v => (/premium|enhanced|natural|neural/i.test(v.name) ? 4 : 0)
-    + (/daniel|arthur|uk english male|ryan|thomas|george|oliver|felipe|antonio|thiago|ricardo/i.test(v.name) ? 2 : 0)
-    + (v.localService ? 1 : 0);
+    + (GOOD_VOICES.test(v.name) ? 3 : 0) + (v.default ? 2 : 0) + (v.localService ? 1 : 0)
+    - (TOY_VOICES.test(v.name) ? 10 : 0);
   return pool.sort((a, b) => score(b) - score(a))[0] || null;
 }
 
+const statusHoldsError = () => $("status").classList.contains("err");
+
 function speak(text) {
+  // voz é enfeite: se falhar, a resposta na tela, o voo da câmera e o painel seguem normalmente
+  try { say(text); } catch (err) { console.warn("voz indisponível:", err); }
+}
+
+function say(text) {
   if (!("speechSynthesis" in window) || !text) return;
   if (!unlocked) { pending = text; return; }   // navegador bloqueia áudio antes do 1º clique
   speechSynthesis.cancel();
-  utter = new SpeechSynthesisUtterance(text);  // referência global: o Chrome coleta e perde o onend
+  const u = utter = new SpeechSynthesisUtterance(text);  // referência global: o Chrome coleta e perde o onend
   const v = pickVoice();
-  if (v) { utter.voice = v; utter.lang = v.lang; } else utter.lang = LANG;
-  utter.rate = 1.02;
-  utter.pitch = .95;
-  utter.onstart = () => {
+  if (v) { u.voice = v; u.lang = v.lang; } else u.lang = LANG;
+  u.rate = 1.02;
+  u.pitch = .95;
+  u.onstart = () => {
     document.body.classList.add("speaking");
-    setStatus(T.speaking);
+    if (!statusHoldsError()) setStatus(T.speaking);   // aviso de erro não some porque ele começou a falar
     clearInterval(keepAlive);   // Chrome corta falas longas sem isso
     keepAlive = setInterval(() => { if (speechSynthesis.speaking) { speechSynthesis.pause(); speechSynthesis.resume(); } }, 9000);
   };
-  utter.onend = utter.onerror = () => {
+  u.onend = u.onerror = () => {
     document.body.classList.remove("speaking");
     clearInterval(keepAlive);
     if ($("status").textContent === T.speaking) setStatus("");
   };
-  setTimeout(() => speechSynthesis.speak(utter), 60); // falar logo após cancel() às vezes é engolido
+  // falar logo após cancel() às vezes é engolido; e se o microfone abriu nesse meio-tempo, fica calado
+  setTimeout(() => { if (utter === u && !rec) speechSynthesis.speak(u); }, 60);
 }
 
 function unlockVoice() {
   if (unlocked) return;
+  // Esc, Shift, Cmd+Tab e toque que vira rolagem não contam como gesto: esperar um gesto de verdade
+  if (navigator.userActivation && !navigator.userActivation.isActive) return;
   unlocked = true;
   $("hint").hidden = true;
   if (!("speechSynthesis" in window)) return;
   // a 1ª fala precisa nascer dentro do gesto do usuário (Safari/Chrome)
-  const first = new SpeechSynthesisUtterance(pending ? "" : " ");
-  speechSynthesis.speak(first);
+  speechSynthesis.speak(new SpeechSynthesisUtterance(pending ? "" : " "));
   if (pending) { const p = pending; pending = null; speak(p); }
 }
-["pointerdown", "keydown"].forEach(ev => addEventListener(ev, unlockVoice, { capture: true }));
+["pointerup", "touchend", "click", "keydown"].forEach(ev => addEventListener(ev, unlockVoice, { capture: true }));
 if ("speechSynthesis" in window) speechSynthesis.getVoices(); // o Chrome carrega as vozes de forma assíncrona
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -540,6 +596,7 @@ let rec = null;
 function toggleMic() {
   if (!SR) { setStatus(T.micUnsupported, true); return; }
   if (rec) { rec.stop(); return; }
+  utter = null;                            // fala agendada e ainda não iniciada não sai mais
   window.speechSynthesis?.cancel();        // não escutar a própria voz
   let finalText = "", failed = false;
   rec = new SR();
@@ -557,7 +614,7 @@ function toggleMic() {
   };
   rec.onerror = e => {
     failed = true;
-    setStatus(e.error === "not-allowed" || e.error === "service-not-allowed" ? T.micBlocked
+    setStatus(e.error === "not-allowed" ? T.micBlocked : e.error === "service-not-allowed" ? T.micService
       : e.error === "no-speech" ? T.micNoSpeech : e.error === "network" ? T.micNetwork : "mic: " + e.error, true);
   };
   rec.onend = () => {
@@ -566,7 +623,8 @@ function toggleMic() {
     document.body.classList.remove("listening");
     const text = (finalText || $("q").value).trim();
     if (failed) return;
-    if (text) submit(text); else setStatus("");
+    setStatus("");
+    if (text) submit(text);
   };
   try { rec.start(); } catch (err) { rec = null; setStatus(String(err), true); }
 }
@@ -598,31 +656,48 @@ function showAnswer(question, answer, sourceIds = []) {
   $("answer").classList.add("show");
 }
 
-let busy = false;
+let busy = false, queued = null;
 async function submit(text) {
   text = text.trim();
-  if (!text || busy) return;
+  if (!text) return;
+  if (busy) {                            // falou/digitou durante outra resposta: entra na fila
+    queued = text;
+    $("q").value = "";
+    setStatus(T.queued);
+    return;
+  }
   busy = true;
   $("q").value = "";
   try {
-    if (REMEMBER_RE.test(text)) await remember(text);
+    if (isCapture(text)) await remember(text);
     else await ask(text);
   } catch (err) {
     const msg = String(err.message || err);
     setStatus(/failed to fetch|networkerror|load failed/i.test(msg) ? T.noServer : msg, true);
   } finally {
     busy = false;
+    if (queued) { const next = queued; queued = null; submit(next); }
   }
 }
+
+// página defasada (o servidor recarregou outra lista de notas): índices não batem mais,
+// então nada de voar nem colar nó — só responder e pedir recarga, e isso não se desfaz sozinho
+let STALE = false;
+function markStale() { STALE = true; setStatus(T.stale, true); }
 
 async function ask(question) {
   setStatus(T.thinking);
   const r = await post("/chat", { question, session: SID });
   setStatus("");
+  if (STALE || (r.build_id && META.build_id && r.build_id !== META.build_id)) {
+    markStale();
+    showAnswer(question, r.answer);
+    speak(r.answer);
+    return;
+  }
   const ids = (r.nodes || []).filter(i => nodeById(i));
   showAnswer(question, r.answer, ids);
   speak(r.answer);
-  if (r.build_id && META.build_id && r.build_id !== META.build_id) { setStatus(T.stale, true); return; }
   flyToSources(ids);
 }
 
@@ -643,17 +718,34 @@ async function remember(text) {
   const r = await post("/remember", { text });
   setStatus("");
   const gd = Graph.graphData();
-  if (r.node.id !== gd.nodes.length) { setStatus(T.stale, true); return; }
+  // a nota foi salva de qualquer jeito; só não dá para colar o nó numa galáxia com outros índices
+  if (STALE || r.prev_build_id !== META.build_id || r.node.id !== gd.nodes.length) {
+    markStale();
+    showAnswer(text, r.line);
+    speak(r.line);
+    return;
+  }
   const anchor = r.anchor !== null && r.anchor !== undefined ? nodeById(r.anchor) : null;
   const n = Object.assign({}, r.node, { __new: true });
-  const jitter = () => (Math.random() - .5) * 14;
+  const jitter = () => (Math.random() - .5) * 6;
   const at = anchor || { x: 0, y: 0, z: 0 };
-  n.x = (at.x || 0) + jitter(); n.y = (at.y || 0) + jitter(); n.z = (at.z || 0) + jitter();
+  n.__off = { x: jitter(), y: jitter(), z: jitter() };
+  n.x = (at.x || 0) + n.__off.x; n.y = (at.y || 0) + n.__off.y; n.z = (at.z || 0) + n.__off.z;
+  n.fx = n.x; n.fy = n.y; n.fz = n.z;
+  // nasce colada na nota-mãe e a acompanha enquanto a física se reacomoda; depois se solta (tick)
+  n.__anchor = anchor;
+  n.__followUntil = performance.now() + 900;
+  const gone = new Set((r.removed || []).map(l => l.source + "-" + l.target));
+  (r.removed || []).forEach(l => { adj.get(l.source)?.delete(l.target); adj.get(l.target)?.delete(l.source); });
   adj.set(n.id, new Set());
   r.links.forEach(l => addAdj(l.source, l.target));
-  byTitle.set(fold(n.label), n.id);
+  if (!byTitle.has(fold(n.label))) byTitle.set(fold(n.label), n.id);
   META.build_id = r.build_id;
-  Graph.graphData({ nodes: [...gd.nodes, n], links: [...gd.links, ...r.links.map(l => ({ source: l.source, target: l.target }))] });
+  Graph.graphData({
+    nodes: [...gd.nodes, n],
+    links: [...gd.links.filter(l => !gone.has(idOf(l.source) + "-" + idOf(l.target))),
+            ...r.links.map(l => ({ source: l.source, target: l.target }))],
+  });
   n.__pulse = performance.now();          // nasce com um pulso de luz
   updateCount();
   renderLegend();
@@ -693,7 +785,7 @@ function applyLanguage(code) {
   updateCount();
   renderLegend();
   if (!status) { setStatus(T.noServer, true); return; }
-  if (status.build_id && META.build_id && status.build_id !== META.build_id) setStatus(T.stale, true);
+  if (status.build_id && META.build_id && status.build_id !== META.build_id) markStale();
   else if (BRAIN === "none") setStatus(T.brainOff, true);
   const greet = T.greeting(status.notes ?? nodes.length);
   showAnswer("", greet);

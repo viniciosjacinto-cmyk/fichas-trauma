@@ -43,6 +43,7 @@ class MockAPI:
         self.requests = []
         self.refuse = False
         self.reject_effort = False
+        self.mode = None          # "cut" | "garbage" | "garbage-quip" | "incomplete-once"
         mock = self
 
         class H(BaseHTTPRequestHandler):
@@ -52,12 +53,33 @@ class MockAPI:
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 mock.requests.append({"headers": {k.lower(): v for k, v in self.headers.items()}, "body": body})
-                if mock.reject_effort and "effort" in body.get("output_config", {}):
+                effort = body.get("output_config", {}).get("effort")
+                if (mock.reject_effort and effort) or (effort and effort not in ("low", "medium", "high", "xhigh", "max")):
                     return self.reply(400, {"type": "error", "error": {"type": "invalid_request_error",
                                       "message": "output_config.effort: not supported for this model"}})
                 if mock.refuse:
                     return self.reply(200, {"type": "message", "content": [], "stop_reason": "refusal",
                                             "stop_details": {"type": "refusal", "category": None}})
+                quip = "format" not in body.get("output_config", {})
+                if mock.mode == "cut":        # raciocínio + resposta estouraram o max_tokens
+                    return self.reply(200, {"type": "message", "stop_reason": "max_tokens", "content": [
+                        {"type": "text", "text": '{"answer": "Senhor, pelos crit'}]})
+                if mock.mode == "garbage" or (mock.mode == "garbage-quip" and quip):
+                    data = b"<html>portal da rede do hospital</html>"
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    return self.wfile.write(data)
+                if mock.mode == "incomplete-once":   # conexão cai no meio do corpo, uma vez
+                    mock.mode = None
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", "500")
+                    self.end_headers()
+                    self.wfile.write(b'{"type": "message", "con')
+                    self.close_connection = True
+                    return
                 if "format" in body.get("output_config", {}):
                     last = body["messages"][-1]["content"]
                     notes = re.findall(r'<note number="(\d+)" title="([^"]+)"', last)
@@ -188,6 +210,57 @@ class TestBuild(unittest.TestCase):
         self.assertEqual(strip("Jarvis, lembre-se de que a TC fecha às 22h"), "a TC fecha às 22h")
         self.assertEqual(strip("anota aí: trocar a capa do iPad"), "trocar a capa do iPad")
         self.assertEqual(strip("anotações do RTS?"), "anotações do RTS?")  # pergunta, não comando
+        self.assertEqual(strip("Remember what the RABT criteria are?"), "Remember what the RABT criteria are?")
+
+    def test_titles(self):
+        sys.path.insert(0, str(ROOT))
+        import server
+        self.assertEqual(server.make_title("iMIST-AMBO tem 8 itens"), "iMIST-AMBO tem 8 itens")
+        self.assertEqual(server.make_title("pH abaixo de 7,2 pede gasometria"), "pH abaixo de 7,2 pede gasometria")
+        self.assertEqual(server.make_title("lactato acima de 4.0 é sinal de choque. Repetir."), "Lactato acima de 4.0 é sinal")
+        self.assertEqual(server.make_title("o RABT pontua fratura de pelve só suspeita"), "O RABT pontua fratura de pelve")
+        self.assertEqual(server.make_title("the trauma bay door code is 4471. Ask the nurse."), "The trauma bay door code")
+
+    def test_odd_vaults(self):
+        sys.path.insert(0, str(ROOT))
+        import build
+        v = Path(tempfile.mkdtemp(prefix="vault-"))
+        try:
+            (v / "a").mkdir()
+            (v / "b").mkdir()
+            files = {
+                "bom.md": "﻿---\ntags: [hemorragia]\n---\n# bom\nCorpo com BOM.",
+                "vazio.md": "---\n---\n# vazio\nParágrafo que cita Glasgow.\n\n---\n\nDepois da régua.",
+                "Glasgow.md": "Escala.",
+                "TC.md": "Tomografia.",
+                "trauma.md": "Pedir TC de crânio; tc minúsculo não conta.",
+                "a/index.md": "índice A", "b/index.md": "índice B",
+                "a/trabalho.md": "Ver [[b/index]] e [[index]].",
+                "v1.md": "Ver [[Protocolo v2.10]].", "v2.md": "Também [[Protocolo v2.10]].",
+                "ru.md": "Viagem para [[Москва]].", "Париж.md": "Город.",
+            }
+            for name, text in files.items():
+                (v / name).write_text(text, encoding="utf-8")
+            (v / "latin.md").write_bytes("Transfusão maciça e Ácido".encode("cp1252"))
+            os.symlink(v / "sumiu.md", v / "atalho.md")          # atalho quebrado: aviso, não queda
+            notes = build.scan(v)
+            by = {n["path"]: n for n in notes}
+            self.assertNotIn("atalho.md", by)
+            self.assertEqual(by["bom.md"]["excerpt"], "Corpo com BOM.")
+            self.assertTrue(by["vazio.md"]["excerpt"].startswith("Parágrafo que cita Glasgow."))
+            self.assertEqual(by["latin.md"]["excerpt"], "Transfusão maciça e Ácido")
+            idx = {n["path"]: i for i, n in enumerate(notes)}
+            pairs = {(l["source"], l["target"]) for l in build.build_links(notes)}
+            linked = lambda x, y: (min(idx[x], idx[y]), max(idx[x], idx[y])) in pairs
+            self.assertTrue(linked("vazio.md", "Glasgow.md"))
+            self.assertTrue(linked("trauma.md", "TC.md"))                   # sigla em maiúsculas
+            self.assertTrue(linked("a/trabalho.md", "b/index.md"))          # [[b/index]] respeita a pasta
+            self.assertTrue(linked("a/trabalho.md", "a/index.md"))          # [[index]]: a da mesma pasta
+            self.assertTrue(linked("v1.md", "v2.md"))                       # nome com ponto não é anexo
+            self.assertFalse(linked("ru.md", "Париж.md"))                   # alvo não latino não liga a tudo
+            self.assertFalse(linked("bom.md", "trauma.md"))
+        finally:
+            shutil.rmtree(v, ignore_errors=True)
 
 
 class TestServerAPI(unittest.TestCase):
@@ -206,6 +279,58 @@ class TestServerAPI(unittest.TestCase):
     def setUp(self):
         self.api.requests.clear()
         self.api.refuse = False
+        self.api.mode = None
+
+    def test_cut_answer_is_an_error_not_spoken_json(self):
+        self.api.mode = "cut"
+        status, body = self.j.post("/chat", {"question": "critérios do RABT", "session": "cut1"})
+        self.assertEqual(status, 502)
+        self.assertIn("max_tokens", body["error"])
+
+    def test_broken_responses(self):
+        self.api.mode = "garbage"           # 200 que não é JSON: erro claro, não 500
+        status, body = self.j.post("/chat", {"question": "critérios do RABT", "session": "g1"})
+        self.assertEqual(status, 502)
+        self.assertIn("não é JSON", body["error"])
+        self.api.mode = "incomplete-once"   # conexão caiu no meio: tenta de novo e responde
+        status, body = self.j.post("/chat", {"question": "critérios do RABT", "session": "g2"})
+        self.assertEqual(status, 200, body)
+        self.api.mode = "garbage-quip"      # a frase de confirmação falha, a memória continua valendo
+        self.api.requests.clear()
+        status, body = self.j.post("/remember", {"text": "lembre que o carrinho de parada fica no box 3"})
+        self.assertEqual(status, 200, body)
+        self.assertEqual(len(self.api.requests), 1)   # sem retentativa para a frase decorativa
+        self.assertTrue((self.j.dir / "notes" / body["path"]).exists())
+
+    def test_remember_reports_removed_links(self):
+        before = self.j.graph()
+        status, body = self.j.post("/remember", {"text": "lembre que REDCap"})   # alvo antes sem nota própria
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["prev_build_id"], before["meta"]["build_id"])
+        after = self.j.graph()
+        b = {(l["source"], l["target"]) for l in before["links"]}
+        a = {(l["source"], l["target"]) for l in after["links"]}
+        self.assertTrue(b - a)
+        self.assertEqual({(l["source"], l["target"]) for l in body["removed"]}, b - a)
+        self.assertEqual({(l["source"], l["target"]) for l in body["links"]}, a - b)
+
+    def test_static_hardening(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.j.port, timeout=10)
+        conn.request("GET", "/graph-data.js", headers={"Host": f"localhost:{self.j.port}"})
+        r = conn.getresponse()
+        r.read()
+        self.assertEqual(r.getheader("Cross-Origin-Resource-Policy"), "same-origin")
+        conn.close()
+        cross = {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors", "Sec-Fetch-Dest": "script"}
+        self.assertEqual(self.j.get("/graph-data.js", cross)[0], 403)
+        self.assertEqual(self.j.get("/api/status", cross)[0], 403)
+        link = {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"}
+        self.assertEqual(self.j.get("/", link)[0], 200)          # abrir por um link continua valendo
+        (self.j.dir / "viewer" / ".DS_Store").write_text("segredo")
+        for path in ("/.DS_Store", "/%2EDS_Store", "/%2eDS_Store"):
+            self.assertEqual(self.j.get(path)[0], 404, path)
+        status, _ = self.j.raw("POST", "/chat", b"{}", {"Content-Type": "application/json", "Content-Length": "-1"})
+        self.assertEqual(status, 400)
 
     def test_serves_only_viewer(self):
         status, html = self.j.get("/")
@@ -326,15 +451,61 @@ class TestOptionalParams(unittest.TestCase):
             j.close()
             api.close()
 
+    def test_bad_effort_value_recovers_after_config_fix(self):
+        api = MockAPI()
+        j = Jarvis({"api_key": KEY, "model": "claude-opus-5-5", "notes_dir": "notes", "api_url": api.url,
+                    "effort": "lwo"})
+        try:
+            status, body = j.post("/chat", {"question": "critérios do NEXUS", "session": "e2"})
+            self.assertEqual(status, 200, body)
+            sent = [r["body"].get("output_config", {}).get("effort") for r in api.requests]
+            self.assertEqual(sent, ["lwo", None])
+            cfg = json.loads((j.dir / "config.json").read_text(encoding="utf-8"))
+            cfg["effort"] = "low"                                 # usuário corrige o config.json
+            (j.dir / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+            j.post("/chat", {"question": "critérios do NEXUS", "session": "e2"})
+            self.assertEqual(api.requests[-1]["body"]["output_config"].get("effort"), "low")
+        finally:
+            j.close()
+            api.close()
+
+
+class TestLiveRebuild(unittest.TestCase):
+    def test_build_py_while_server_runs(self):
+        api = MockAPI()
+        j = Jarvis({"api_key": KEY, "model": "claude-opus-5-5", "notes_dir": "notes", "api_url": api.url})
+        try:
+            other = j.dir / "outra"
+            other.mkdir()
+            (other / "Plantão.md").write_text("Escala do plantão de sábado.", encoding="utf-8")
+            (other / "Sala.md").write_text("A sala de trauma tem 2 leitos. Ver [[Plantão]].", encoding="utf-8")
+            r = subprocess.run([sys.executable, "build.py", str(other)], cwd=j.dir, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            info = json.loads(j.get("/api/status")[1])          # o servidor percebe sozinho
+            self.assertEqual((info["notes"], info["build_id"]), (2, j.graph()["meta"]["build_id"]))
+            status, body = j.post("/remember", {"text": "lembre que o plantão de sábado começa às 7h"})
+            self.assertEqual(status, 200, body)
+            self.assertTrue((other / "captures" / Path(body["path"]).name).exists())
+            self.assertEqual(len(j.graph()["nodes"]), 3)
+            # caminho digitado errado não vai parar no config
+            r = subprocess.run([sys.executable, "build.py", str(j.dir / "nao-existe")], cwd=j.dir,
+                               capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertEqual(json.loads((j.dir / "config.json").read_text())["notes_dir"], str(other.resolve()))
+        finally:
+            j.close()
+            api.close()
+
 
 FAKE_CLAUDE = r'''#!{python}
 import json, sys
 args = sys.argv[1:]
 open({log!r}, "a").write(json.dumps(args) + "\n")
 prompt = sys.stdin.read()
-if {old} and len(args) > 3:
-    sys.stderr.write("error: unknown option '--system-prompt'\n")
-    sys.exit(1)
+for flag in {unknown!r}:          # Claude Code antigo: não conhece estas flags
+    if flag in args:
+        sys.stderr.write("error: unknown option '%s'\n" % flag)
+        sys.exit(1)
 if "--json-schema" in args:
     out = {{"type": "result", "subtype": "success", "is_error": False, "result": "",
            "structured_output": {{"answer": "Pela CLI, senhor.", "sources": [1]}}}}
@@ -346,35 +517,48 @@ print(json.dumps(out))
 
 
 class TestClaudeCLI(unittest.TestCase):
-    def run_with(self, old):
+    def run_with(self, unknown=()):
         tmp = Path(tempfile.mkdtemp(prefix="fake-claude-"))
         log = tmp / "args.log"
         exe = tmp / "claude"
-        exe.write_text(FAKE_CLAUDE.format(python=sys.executable, log=str(log), old=old), encoding="utf-8")
+        exe.write_text(FAKE_CLAUDE.format(python=sys.executable, log=str(log), unknown=list(unknown)),
+                       encoding="utf-8")
         exe.chmod(0o755)
         j = Jarvis({"api_key": "PUT-YOUR-KEY-HERE", "notes_dir": "notes", "claude_command": str(exe)})
         try:
             status, info = j.get("/api/status")
             self.assertEqual(json.loads(info)["brain"], "cli")
             status, body = j.post("/chat", {"question": "Quando retiro o colar pelo NEXUS?", "session": "c1"})
-            self.assertEqual(status, 200, body)
-            return body, [json.loads(l) for l in log.read_text().splitlines()], j.graph()
+            return status, body, [json.loads(l) for l in log.read_text().splitlines()], j.graph()
         finally:
             j.close()
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_cli_backend(self):
-        body, calls, g = self.run_with(old=False)
+        status, body, calls, g = self.run_with()
+        self.assertEqual(status, 200, body)
         self.assertEqual(body["answer"], "Pela CLI, senhor.")
         self.assertEqual(body["nodes"], [index_of(g, "NEXUS")])
         args = calls[0]
         for flag in ("-p", "--output-format", "--system-prompt", "--json-schema", "--tools", "--no-session-persistence"):
             self.assertIn(flag, args)
 
-    def test_old_cli_falls_back_to_minimal_flags(self):
-        body, calls, g = self.run_with(old=True)
+    def test_old_cli_drops_only_the_unknown_flags(self):
+        status, body, calls, g = self.run_with(unknown=["--effort", "--json-schema"])
+        self.assertEqual(status, 200, body)
         self.assertEqual(body["answer"], "CLI antiga, senhor.")
-        self.assertEqual(calls[-1], ["-p", "--output-format", "json"])
+        last = calls[-1]
+        self.assertNotIn("--effort", last)
+        self.assertNotIn("--json-schema", last)
+        for lock in ("--tools", "--strict-mcp-config", "--system-prompt"):  # as travas ficam
+            self.assertIn(lock, last)
+        self.assertEqual(last[last.index("--tools") + 1], "")
+
+    def test_cli_without_lockdown_flag_is_refused(self):
+        status, body, calls, g = self.run_with(unknown=["--tools"])
+        self.assertEqual(status, 503)
+        self.assertIn("claude update", body["error"])
+        self.assertEqual(len(calls), 1)   # não tenta rodar sem a trava
 
 
 class TestNoBrain(unittest.TestCase):
