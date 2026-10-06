@@ -56,6 +56,7 @@ async function finalChecks(s, c, { strictConsole = false, label = "" } = {}) {
   c.ok(s.blocked.length === 0, `${tag}requests to hosts the platform blocks: ${s.blocked.slice(0, 3).join(", ")}`);
   c.ok(csp.length === 0, `${tag}CSP violations: ${csp.slice(0, 3).map(v => v.directive + " " + v.blockedURI).join(", ")}`);
   c.ok(s.popups.length === 0, `${tag}popups opened: ${s.popups.join(", ")}`);
+  for (const n of s.notes) if (/^screenshot /.test(n)) c.note(tag + n);
   if (s.cdnMissing.length) c.note(`${tag}CDN files without a local copy (allowed on the platform): ${s.cdnMissing.slice(0, 3).join(", ")}`);
 }
 
@@ -213,6 +214,13 @@ scenario("s", "static contract of jarvis.html", async (browser, c) => {
   c.ok(!rootRules.some(m => /(?:^|;)\s*(?:min-)?height\s*:\s*100vh/.test(m[2])), "html/body height uses 100vh (SPEC: html,body{height:100%})");
   c.ok(rootRules.some(m => /height\s*:\s*100%/.test(m[2])), "no html,body{height:100%}");
   c.ok(/color-scheme\s*:\s*dark/.test(src), "no color-scheme: dark token block");
+  // SPEC Contrato 9: every color is a :root token; the keyword "transparent" is a color too (the token is --clear)
+  const css = ((src.match(/<style>([\s\S]*?)<\/style>/) || [])[1] || "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/:root\s*\{[^}]*\}/g, "");
+  const literal = [...css.matchAll(/(?:^|[;{\s])(-{0,2}[a-z][a-z-]*)\s*:\s*([^;{}]+)/gi)]
+    .filter(m => /\btransparent\b|#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\s*\(/i.test(m[2])).map(m => m[1] + ": " + m[2].trim());
+  c.ok(!literal.length, `colors outside the :root tokens: ${literal.slice(0, 3).join(" | ")}`);
+  const scriptsSrc = [...src.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]).join("\n");
+  c.ok(!/["']transparent["']/.test(scriptsSrc), "a script paints with the color keyword 'transparent' (the token is --clear)");
   c.ok(/prefers-reduced-motion/.test(src), "no prefers-reduced-motion handling");
   c.ok(/safe-area-inset-bottom/.test(src) && /safe-area-inset-top/.test(src), "safe-area insets not used for the bars");
   c.ok(/visualViewport/.test(src), "visualViewport not used to keep the dock above the iPad keyboard");
@@ -1206,6 +1214,26 @@ scenario("r", "iPad portrait and iPhone: the source star of an answer stays visi
       await sleep(300);
       if (chips.length && await userClick(c, chips[chips.length - 1], `${tag}: the RABT source chip`)) {
         c.ok(await headingVisible(s.page, "RABT", 6000), `${tag}: the chip did not open the panel titled RABT`);
+        // the panel's actions stay reachable however long the note is, and a note taller than the panel says so (fade)
+        await s.settleView();
+        const more = s.page.getByRole("button", { name: /^\s*Ver nota inteira\s*$/ });
+        c.ok(await more.count() > 0, `${tag}: no "Ver nota inteira" button in the RABT panel`);
+        if (await more.count()) {
+          const rvm = await reallyVisible(more.first());
+          c.ok(rvm === true, `${tag}: "Ver nota inteira" is not reachable: ${rvm}`);
+          const box = await more.first().evaluate(el => {
+            const b = el.getBoundingClientRect(), p = (el.closest("aside, [id*=panel], [class*=sheet]") || document.body).getBoundingClientRect();
+            return { top: b.top, bottom: b.bottom, ptop: p.top, pbottom: p.bottom };
+          });
+          c.ok(box.top >= box.ptop - 1 && box.bottom <= box.pbottom + 1, `${tag}: "Ver nota inteira" is cut at the panel's edge: ${JSON.stringify(box)}`);
+        }
+        const cue = await s.evaluate(() => {
+          const sc = document.getElementById("panel-scroll");
+          if (!sc || sc.scrollHeight <= sc.clientHeight + 6) return "fits";
+          const st = getComputedStyle(sc), m = st.maskImage || st.webkitMaskImage || "none";
+          return m !== "none" && /gradient/.test(m) ? "fade" : "no cue: " + m;
+        });
+        c.ok(cue === "fits" || cue === "fade", `${tag}: the note is taller than the panel but nothing shows there is more to scroll (${cue})`);
         const b = await waitStarSettled(s, "RABT");
         c.ok(b && b.ok, `${tag}: with the RABT panel open, its star is not visible: ${JSON.stringify(b)}`);
         const tb = await s.textBox();
@@ -1220,35 +1248,155 @@ scenario("r", "iPad portrait and iPhone: the source star of an answer stays visi
   }
 }, 200000);
 
-// a memory dictated while the account is still connecting (use() may take ~10 s, SPEC "Regras gerais") must reach
-// the account's db once it resolves and must not vanish from the galaxy when the account's memory list arrives
-scenario("t", "remember while the account is still connecting (slow use()): the memory lands in the db and stays in the galaxy", async (browser, c) => {
-  const DELAY = 7000;
-  const s = await H.open(browser, { file: FILE, mock: Object.assign({}, FAST_VOICE, { useDelayMs: DELAY }) });
-  try {
-    await s.goto();
-    await s.waitGalaxy(26, 30000);
+// the exchanges in the answer list, top to bottom: question line, answer text, meta line
+async function feedExchanges(s) {
+  return s.evaluate(() => [...document.querySelectorAll("#feed .ex")].map(e => {
+    const q = e.querySelector(".ex-q"), a = e.querySelector(".ex-a"), m = e.querySelector(".ex-meta");
+    return { q: q ? q.innerText.replace(/\s+/g, " ").trim() : "", a: a ? a.innerText.replace(/\s+/g, " ").trim() : "",
+      pending: !!(a && a.classList.contains("pending")), meta: m ? m.innerText.replace(/\s+/g, " ").trim() : "" };
+  })).catch(() => []);
+}
+const GREETING_RE = /\b\d+ notas? e \d+ mem[óo]rias? na gal[áa]xia\b/;
+// what the page spoke after `t` that is not part of `answer` (the greeting or a briefing talking over the user's answer)
+async function spokenBesides(s, t, answer) {
+  const flatA = norm(answer);
+  return (await s.spoken(t)).map(x => norm(x.text)).filter(x => x && !flatA.includes(x));
+}
+// a request sent right after "Ativar JARVIS" while the page still connects (use() resolves only after DELAY ms) belongs to
+// the user: the activation's greeting and automatic briefing must never cancel it ("Parado."), pre-empt it or talk over it.
+// A question reaches Claude, is answered and spoken; a memory said in that window lands in the account's db (not only on the
+// device), stays in the galaxy and its confirmation is spoken.
+async function activationWindow(browser, c, tag, { delay, text, mock = {}, viewport, raw = false }) {
+  const s = await H.open(browser, { file: FILE, viewport, mock: Object.assign({}, FAST_VOICE, mock, { useDelayMs: delay }) });
+  await s.goto();
+  await s.waitGalaxy(26, 30000);
+  let t;
+  if (raw) { // exactly like a user (and .v4/probe-race.cjs): tap Ativar, type, Enter
+    s.step(`${tag}: activate`);
+    await (await s.activateButton()).click();
+    await sleep(300);
+    s.step(`${tag}: send ${JSON.stringify(text)}`);
+    await s.page.locator("#q").fill(text);
+    t = await s.now();
+    await s.page.keyboard.press("Enter");
+  } else {
     await s.activate();
-    const st0 = await s.evaluate(() => (window.__jarvis && window.__jarvis.state ? window.__jarvis.state.storage : null));
-    const early = await s.evaluate(() => (window.__calls || []).filter(x => x.cap === "claude" && x.method === "use").map(x => x.t))
-      .then(async ts => ts.length && (await s.now()) < Math.min(...ts) + DELAY);
-    if (!early) c.note("the activation took longer than the use() delay; the connecting window was not exercised");
-    if (st0 !== null && st0 !== "pending") c.note(`storage was already "${st0}" when the memory was dictated`);
-    const t = await s.send("Jarvis, lembre que o plantão de sábado é no PS");
-    const memPath = await s.waitNode(async () => Object.keys(await s.dbExport()).find(p => /^data\/users\/u_test123\/profile\/memories\/[^/]+$/.test(p)),
-      { timeout: DELAY + 15000, desc: "the memory in the account's db" }).catch(e => (c.ok(false, e.message + " (a memory said while connecting was kept only on the device)"), null));
-    if (memPath) {
-      const doc = (await s.dbExport())[memPath];
-      c.ok(/plant[aã]o de s[aá]bado/i.test(doc.text || ""), "memory text: " + JSON.stringify(doc.text));
+    t = await s.send(text);
+  }
+  const early = await s.evaluate(([src, d]) => {
+    const fed = [...document.querySelectorAll("#feed .ex .ex-a")].some(a => new RegExp(src).test(a.innerText));
+    const uses = (window.__calls || []).filter(x => x.cap === "claude" && x.method === "use").map(x => x.t);
+    return { fed, connecting: uses.length > 0 && performance.now() < Math.min(...uses) + d };
+  }, [GREETING_RE.source, delay]);
+  c.ok(!early.fed, `${tag}: the greeting was already on screen when the message was sent (the activation window was not exercised)`);
+  c.ok(early.connecting, `${tag}: use() had already resolved when the message was sent (the connecting window was not exercised)`);
+  return { s, t };
+}
+scenario("t", "activation window (slow use()): a question and a memory sent right after Ativar are answered/saved and spoken, never cancelled by the greeting or briefing", async (browser, c) => {
+  const DELAY = 7000;
+  // 1. a question
+  {
+    const { s, t } = await activationWindow(browser, c, "ask", { delay: DELAY, text: RABT_Q });
+    try {
+      const call = await s.waitSample(t, x => flat(x).includes("quais são os critérios do RABT"), { timeout: DELAY + 20000, desc: "the question in a sample call" })
+        .catch(e => (c.ok(false, `ask: ${e.message} (the question sent right after Ativar never reached Claude)`), null));
+      if (call) {
+        c.ok(call.status === "resolved", `ask: the question's sample call ended "${call.status}" (cancelled by the activation?)`);
+        c.ok(turnsOf(call).some(x => x.role === "user" && /crit[ée]rios do RABT/.test(x.content)), "ask: the question is not one of the user turns");
+      }
+      await s.waitText(/Quatro crit[ée]rios/, { timeout: DELAY + 20000 }).catch(e => c.ok(false, `ask: answer not shown: ${e.message}`));
+      await waitVoiceIdle(s, 20000);
+      await sleep(1500); // anything the activation still had queued would show up by now
+      const exs = await feedExchanges(s);
+      const mine = exs.find(x => /crit[ée]rios do RABT/.test(x.q));
+      c.ok(!!mine, "ask: the question's exchange is missing from the answer list");
+      if (mine) {
+        c.ok(/Quatro crit[ée]rios/.test(mine.a) && !/Parado/.test(mine.a), `ask: the question's answer reads ${JSON.stringify(mine.a.slice(0, 90))} (want the answer, not "Parado.")`);
+        const said = await s.spoken(t);
+        c.ok(said.some(x => /crit[ée]rios/i.test(x.text) && norm(mine.a).includes(norm(x.text))), "ask: the answer was not spoken");
+        const over = await spokenBesides(s, t, mine.a);
+        c.ok(!over.length, `ask: spoken over the user's answer: ${JSON.stringify(over.slice(0, 3))}`);
+      }
+      c.ok(!exs.some(x => /Parado/.test(x.a)), `ask: an exchange was stopped: ${JSON.stringify(exs.filter(x => /Parado/.test(x.a)).map(x => x.q))}`);
+      const gi = exs.findIndex(x => GREETING_RE.test(x.a)), qi = exs.findIndex(x => /crit[ée]rios do RABT/.test(x.q));
+      c.ok(gi >= 0, "ask: the greeting (with the note count) never appeared");
+      if (gi >= 0 && qi >= 0) c.ok(gi < qi, "ask: the greeting landed below the user's question (it came first)");
+      const cancelled = (await s.sampleCalls()).filter(x => x.status === "cancelled");
+      c.ok(!cancelled.length, `ask: ${cancelled.length} sample call(s) cancelled without the user asking`);
+      await s.shot("t-ask-connecting");
+      await finalChecks(s, c, { label: "ask" });
+    } finally { await s.close(); }
+  }
+  // 2. a memory
+  {
+    const { s, t } = await activationWindow(browser, c, "remember", { delay: DELAY, text: "Jarvis, lembre que o plantão de sábado é no PS" });
+    try {
+      const st0 = await s.evaluate(() => (window.__jarvis && window.__jarvis.state ? window.__jarvis.state.storage : null));
+      if (st0 !== null && st0 !== "pending") c.note(`storage was already "${st0}" when the memory was dictated`);
+      const memPath = await s.waitNode(async () => Object.keys(await s.dbExport()).find(p => /^data\/users\/u_test123\/profile\/memories\/[^/]+$/.test(p)),
+        { timeout: DELAY + 15000, desc: "the memory in the account's db" }).catch(e => (c.ok(false, e.message + " (a memory said while connecting was kept only on the device)"), null));
+      if (memPath) {
+        const doc = (await s.dbExport())[memPath];
+        c.ok(/plant[aã]o de s[aá]bado/i.test(doc.text || ""), "memory text: " + JSON.stringify(doc.text));
+      }
+      // the confirmation shown in the memory's own exchange is what gets spoken (not just any later utterance)
+      const mine = await s.waitNode(async () => (await feedExchanges(s)).find(x => /plant[aã]o de s[aá]bado/.test(x.q) && !x.pending && x.a),
+        { timeout: DELAY + 15000, desc: "the memory's confirmation in the answer list" }).catch(e => (c.ok(false, e.message), null));
+      if (mine) {
+        c.ok(!/Parado/.test(mine.a), `remember: the memory's exchange reads ${JSON.stringify(mine.a)} (stopped by the activation)`);
+        await s.waitNode(async () => (await s.spoken(t)).some(x => x.text.trim().length > 3 && norm(mine.a).includes(norm(x.text))),
+          { timeout: 15000, desc: "the memory confirmation spoken" }).catch(e => c.ok(false, `remember: ${e.message} (shown: ${JSON.stringify(mine.a)})`));
+        await waitVoiceIdle(s, 15000);
+        const over = await spokenBesides(s, t, mine.a);
+        c.ok(!over.length, `remember: spoken over the memory confirmation: ${JSON.stringify(over.slice(0, 3))}`);
+      }
+      await sleep(2500); // the account's memory snapshot has arrived by now
+      const info = await s.info();
+      c.ok(info && info.nodes === 27, `after the account connected the galaxy has ${info && info.nodes} nodes (want 27: the new memory must stay)`);
+      const exs = await feedExchanges(s);
+      c.ok(!exs.some(x => /Parado/.test(x.a)), "remember: an exchange was stopped by the activation");
+      await s.shot("t-remember-connecting");
+      await finalChecks(s, c, { label: "remember" });
+    } finally { await s.close(); }
+  }
+}, 180000);
+
+// regression for the activation race (.v4/probe-race.cjs): use() takes 9 s, the user taps Ativar and asks at once; the
+// automatic briefing used to start ~4 s later, abort the question ("Parado.") and speak over it
+scenario("v", "activation race: a question typed right after Ativar (use() 9 s) is answered, never stopped or talked over by the greeting/briefing", async (browser, c) => {
+  const DELAY = 9000, Q = "quais são os critérios do RABT?";
+  const { s, t } = await activationWindow(browser, c, "race", { delay: DELAY, text: Q, raw: true, viewport: { width: 1440, height: 900 }, mock: { voiceMs: () => 300 } });
+  try {
+    await sleep(DELAY); // the probe's look: by now the old code had stopped the question and started the briefing
+    let exs = await feedExchanges(s);
+    c.ok(!exs.some(x => /Parado/.test(x.a)), `at ${DELAY / 1000} s: ${JSON.stringify(exs.map(x => (x.q + " | " + x.a).slice(0, 80)))}`);
+    const call = await s.waitSample(t, x => flat(x).includes(Q), { timeout: 20000, desc: "the question in a sample call" })
+      .catch(e => (c.ok(false, e.message + " (the question never reached Claude)"), null));
+    if (call) c.ok(call.status === "resolved", `the question's sample call ended "${call.status}"`);
+    await s.waitText(/Quatro crit[ée]rios/, { timeout: 20000 }).catch(e => c.ok(false, `answer not shown: ${e.message}`));
+    await waitVoiceIdle(s, 20000);
+    await sleep(1500);
+    exs = await feedExchanges(s);
+    const mine = exs.find(x => x.q.includes(Q));
+    c.ok(!!mine && /Quatro crit[ée]rios/.test(mine.a) && !/Parado/.test(mine.a), `the question's exchange: ${JSON.stringify(mine || null)}`);
+    c.ok(!exs.some(x => /Parado/.test(x.a)), "an exchange shows \"Parado.\" although the user never pressed Stop");
+    if (mine) {
+      c.ok((await s.spoken(t)).some(x => /crit[ée]rios/i.test(x.text)), "the answer was not spoken");
+      const over = await spokenBesides(s, t, mine.a);
+      c.ok(!over.length, `spoken over the user's answer: ${JSON.stringify(over.slice(0, 3))}`);
     }
-    await s.waitNode(async () => (await s.spoken(t)).some(x => x.text.trim().length > 3), { timeout: DELAY + 15000, desc: "a spoken confirmation" }).catch(e => c.ok(false, e.message));
-    await sleep(2500); // the account's memory snapshot has arrived by now
-    const info = await s.info();
-    c.ok(info && info.nodes === 27, `after the account connected the galaxy has ${info && info.nodes} nodes (want 27: the new memory must stay)`);
-    await s.shot("t-remember-connecting");
+    const cancelled = (await s.sampleCalls()).filter(x => x.status === "cancelled");
+    c.ok(!cancelled.length, `${cancelled.length} sample call(s) cancelled without the user asking`);
+    // the briefing stays one sentence away
+    s.step("race: briefing on request");
+    const t2 = await s.send("o que tenho hoje?");
+    await s.waitNode(async () => (await s.toolCalls("list_events", t2)).length > 0, { timeout: 15000, desc: "list_events after 'o que tenho hoje?'" }).catch(e => c.ok(false, e.message));
+    await s.waitNode(async () => (await s.spoken(t2)).some(x => EVENT_RE.test(x.text)), { timeout: 20000, desc: "a spoken briefing naming an event" }).catch(e => c.ok(false, e.message));
+    await waitVoiceIdle(s, 20000);
+    await s.shot("v-activation-race");
     await finalChecks(s, c);
   } finally { await s.close(); }
-}, 120000);
+}, 150000);
 
 // the day document grows with every question; it must stay under the db's 256 KiB per document (db.d.ts) by dropping
 // the oldest events, or the refused write would switch the whole visit to read-only (and block memories too)

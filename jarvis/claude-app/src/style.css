@@ -60,7 +60,7 @@ body {
   color: var(--ink);
   font: 400 16px/1.5 var(--font-body);
   -webkit-text-size-adjust: 100%;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: var(--clear);
   -webkit-font-smoothing: antialiased;
 }
 body::before {
@@ -70,9 +70,9 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(60% 50% at 70% 30%, var(--nebula-a), transparent 70%),
-    radial-gradient(45% 40% at 20% 75%, var(--nebula-c), transparent 70%),
-    radial-gradient(35% 30% at 85% 85%, var(--nebula-b), transparent 70%),
+    radial-gradient(60% 50% at 70% 30%, var(--nebula-a), var(--clear) 70%),
+    radial-gradient(45% 40% at 20% 75%, var(--nebula-c), var(--clear) 70%),
+    radial-gradient(35% 30% at 85% 85%, var(--nebula-b), var(--clear) 70%),
     var(--void);
 }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -108,13 +108,13 @@ a { color: var(--arc); }
   display: flex; align-items: center; gap: 12px;
   padding: calc(env(safe-area-inset-top, 0px) + 10px) max(var(--gutter), env(safe-area-inset-right, 0px)) 22px max(var(--gutter), env(safe-area-inset-left, 0px));
   /* faixa escura firme atrás da telemetria: um brilho de estrela passando atrás não apaga o texto */
-  background: linear-gradient(to bottom, var(--top-fade) 0%, var(--top-fade) 55%, transparent 100%);
+  background: linear-gradient(to bottom, var(--top-fade) 0%, var(--top-fade) 55%, var(--clear) 100%);
   pointer-events: none;
 }
 #topbar > * { pointer-events: auto; }
 .reactor {
   width: 52px; height: 52px; flex: none; padding: 2px; border: 0; background: none; border-radius: 50%;
-  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--glow) 60%, transparent));
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--glow) 60%, var(--clear)));
 }
 .reactor svg { width: 100%; height: 100%; overflow: visible; display: block; }
 .reactor .ring { fill: none; stroke: var(--glow); stroke-width: 1.2; opacity: 0.55; }
@@ -223,7 +223,22 @@ body.closeup #legend { top: calc(env(safe-area-inset-top, 0px) + 138px); max-hei
   font-size: 22px; line-height: 1; color: var(--ink-2);
 }
 #panel-close:hover, .sheet-close:hover { color: var(--ink); border-color: var(--line-2); }
-#panel-scroll { overflow: auto; padding: 4px 18px 18px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+#panel-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 18px 18px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* nota maior que o painel: as bordas esmaecem para mostrar que há mais para rolar (como a lista de respostas) */
+#panel-scroll.more-below {
+  -webkit-mask-image: linear-gradient(to bottom, var(--void) calc(100% - 36px), var(--clear));
+  mask-image: linear-gradient(to bottom, var(--void) calc(100% - 36px), var(--clear));
+}
+#panel-scroll.more-above {
+  -webkit-mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px);
+  mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px);
+}
+#panel-scroll.more-above.more-below {
+  -webkit-mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px, var(--void) calc(100% - 36px), var(--clear));
+  mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px, var(--void) calc(100% - 36px), var(--clear));
+}
+/* ações do painel (ver a nota inteira, apagar): rodapé fixo, sempre à mão, por mais longa que seja a nota */
+#panel-foot { flex: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 18px 14px; border-top: 1px solid var(--line); }
 .pn-group { display: inline-flex; align-items: center; gap: 8px; font: 500 11.5px/1.2 var(--font-mono); color: var(--ink-2);
   text-transform: uppercase; letter-spacing: 0.1em; }
 #panel h2 { margin: 8px 0 2px; font: 600 21px/1.25 var(--font-display); letter-spacing: 0.02em; text-wrap: balance; overflow-wrap: anywhere; }
@@ -232,7 +247,7 @@ body.closeup #legend { top: calc(env(safe-area-inset-top, 0px) + 138px); max-hei
 .pn-body code { font: 13px var(--font-mono); background: var(--glass-hi); padding: 1px 5px; border-radius: 5px; }
 .pn-body .h { font-weight: 600; color: var(--ink); font-family: var(--font-display); letter-spacing: 0.02em; }
 .wl { color: var(--arc); cursor: pointer; text-decoration: none; border-bottom: 1px dashed var(--line-2); background: none; border-top: 0; border-left: 0; border-right: 0; padding: 0; font: inherit; }
-.wl.dead { color: var(--ink-2); cursor: default; border-bottom-color: transparent; }
+.wl.dead { color: var(--ink-2); cursor: default; border-bottom-color: var(--clear); }
 .pn-meta { margin-top: 12px; font: 400 12.5px/1.5 var(--font-mono); color: var(--ink-2); }
 .pn-actions { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
 .pn-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -271,7 +286,7 @@ body.closeup #legend { top: calc(env(safe-area-inset-top, 0px) + 138px); max-hei
 .btn:hover { border-color: var(--arc); }
 .btn.danger { border-color: var(--alert); color: var(--alert); }
 .btn.danger.armed { background: var(--alert); color: var(--void); }
-.btn.primary { background: var(--arc); color: var(--on-arc); border-color: transparent; }
+.btn.primary { background: var(--arc); color: var(--on-arc); border-color: var(--clear); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
@@ -301,13 +316,13 @@ a.chip .meta { color: var(--ink-2); font-family: var(--font-mono); font-size: 11
   display: flex; flex-direction: column; gap: 8px; overflow-y: auto; overscroll-behavior: contain;
   max-height: 34vh; max-height: min(34vh, calc(var(--vvh, 100vh) * 0.34));
   padding-top: 18px; -webkit-overflow-scrolling: touch;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, var(--void) 18px);
-  mask-image: linear-gradient(to bottom, transparent, var(--void) 18px);
+  -webkit-mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px);
+  mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px);
 }
 /* resposta maior que a lista: a borda de baixo esmaece para mostrar que há mais para rolar */
 #feed.more-below {
-  -webkit-mask-image: linear-gradient(to bottom, transparent, var(--void) 18px, var(--void) calc(100% - 30px), transparent);
-  mask-image: linear-gradient(to bottom, transparent, var(--void) 18px, var(--void) calc(100% - 30px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px, var(--void) calc(100% - 30px), var(--clear));
+  mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px, var(--void) calc(100% - 30px), var(--clear));
 }
 #feed:empty { display: none; }
 .ex { padding: 12px 16px 14px; animation: rise 0.3s ease-out; flex: none; background: var(--glass-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -362,7 +377,7 @@ a.chip .meta { color: var(--ink-2); font-family: var(--font-mono); font-size: 11
 .round:hover { border-color: var(--line-2); }
 #menu-btn { font-size: 24px; letter-spacing: 0; }
 #q {
-  flex: 1; min-width: 0; min-height: 48px; max-height: 140px; resize: none; border: 0; outline: 0; background: transparent;
+  flex: 1; min-width: 0; min-height: 48px; max-height: 140px; resize: none; border: 0; outline: 0; background: var(--clear);
   color: var(--ink); font: 400 17px/1.4 var(--font-body); padding: 12px 6px; overflow-y: auto;
 }
 #q::placeholder { color: var(--ink-3); }
@@ -420,7 +435,7 @@ a.chip .meta { color: var(--ink-2); font-family: var(--font-mono); font-size: 11
 .seg label small { display: block; font: 400 10.5px/1.2 var(--font-mono); letter-spacing: 0.02em; color: var(--ink-3); }
 .seg input:checked + label { background: var(--arc-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
 .seg input:focus-visible + label { outline: 2px solid var(--arc); outline-offset: 2px; }
-input[type="range"] { width: 100%; height: 44px; accent-color: var(--arc); background: transparent; }
+input[type="range"] { width: 100%; height: 44px; accent-color: var(--arc); background: var(--clear); }
 select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--void-2); color: var(--ink); padding: 0 12px; font-size: 16px; max-width: 100%; }
 .switch { position: relative; width: 56px; height: 32px; flex: none; }
 .switch input { position: absolute; inset: -6px; width: calc(100% + 12px); height: calc(100% + 12px); opacity: 0; margin: 0; cursor: pointer; z-index: 1; }

@@ -359,7 +359,7 @@
     try {
       var sz = galaxySize();
       Graph = new Ctor(el, { controlType: "orbit" });
-      Graph.backgroundColor(TOK.clear || "transparent")
+      Graph.backgroundColor(TOK.clear || TOK.void) // o token --clear; sem ele, o fundo do próprio :root
         .showNavInfo(false)
         // sem arrastar estrelas: o fim do arrasto do 3d-force-graph manda um pointerup sintético de toque
         // que derruba os OrbitControls com TypeError a cada clique de mouse; tocar/clicar continua abrindo o painel
@@ -367,12 +367,14 @@
         .width(sz.w).height(sz.h)
         .nodeId("key")
         .nodeLabel(function (n) { return '<div class="tip"><b>' + esc(n.label) + "</b><span>" + esc(n.group) + "</span></div>"; })
-        // sem o realce (só o UMD), a estrela apagada fica translúcida: no close-up não vira um disco cinza pesado
-        .nodeColor(function (n) { return (!HL.nodes.size || HL.nodes.has(n.key)) ? colorOf(n.group) : rgba(TOK.dim, 0.35); })
-        .nodeVal(function (n) { var r = radius(n); return r * r / 4; })
+        // sem o realce (só o UMD), a estrela apagada vira um fantasma pequeno da própria cor: no close-up não sobra
+        // um disco cinza opaco na frente da fonte (o realce desenha as próprias estrelas e ignora estas duas)
+        .nodeColor(function (n) { return isLit(n) ? colorOf(n.group) : rgba(colorOf(n.group), DIM_NODE_ALPHA); })
+        .nodeVal(function (n) { var r = radius(n); return r * r / 4 * (isLit(n) ? 1 : DIM_NODE_VAL); })
         .nodeOpacity(0.95)
         .nodeResolution(14)
-        .linkColor(function (l) { return HL.links.size ? (HL.links.has(l) ? TOK.linkHl : TOK.linkDim) : TOK.link; })
+        // com algo aceso (mesmo uma memória ainda sem ligações), as demais ligações recuam; sem o realce, recuam de verdade
+        .linkColor(function (l) { return HL.nodes.size ? (HL.links.has(l) ? TOK.linkHl : S.bloom ? TOK.linkDim : rgba(TOK.link, DIM_LINK_ALPHA)) : TOK.link; })
         .linkOpacity(0.5)
         .linkWidth(function (l) { return HL.links.has(l) ? 0.7 : 0; })
         .linkDirectionalParticles(function (l) { return HL.links.has(l) ? 3 : 0; })
@@ -438,6 +440,10 @@
     ENH = ev && ev.detail && ev.detail.THREE ? ev.detail : null;
     applyEnhancement();
   });
+  // apagadas sem o realce: cor da pasta a 7% (vezes nodeOpacity; a luz forte do 3d-force-graph ainda a clareia),
+  // 30% do volume (≈67% do raio) e ligações a 16% — um fantasma discreto, mesmo no close-up de uma memória
+  var DIM_NODE_ALPHA = 0.07, DIM_NODE_VAL = 0.3, DIM_LINK_ALPHA = 0.16;
+  function isLit(n) { return !HL.nodes.size || HL.nodes.has(n.key); }
   function nodeObject(n) {
     var THREE = ENH.THREE;
     var color = new THREE.Color(colorOf(n.group));
@@ -770,7 +776,7 @@
       if (!n.__pulse) n.__glow.scale.setScalar(n.__r * (focus ? 8 : 5.5));
     });
     try {
-      if (!S.bloom) Graph.nodeColor(Graph.nodeColor());
+      if (!S.bloom) Graph.nodeColor(Graph.nodeColor()).nodeVal(Graph.nodeVal());
       Graph.linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()).linkDirectionalParticles(Graph.linkDirectionalParticles());
     } catch (e) { /* galáxia ocupada */ }
   }
@@ -996,20 +1002,25 @@
       '<h2 id="panel-title">' + esc(n.label) + '</h2><div class="pn-path">' + esc(n.path || "") + "</div>";
     function body() {
       var text = n.kind === "memory" ? n.fact : full ? n.text : n.excerpt;
-      var html = '<div class="pn-body">' + renderMd(text) + "</div>";
-      if (n.kind !== "memory" && !full && n.excerpt !== String(n.text || "").trim()) html += '<div class="pn-actions"><button class="btn" type="button" id="pn-more">Ver nota inteira</button></div>';
+      var html = '<div class="pn-body">' + renderMd(text) + "</div>", foot = "";
+      if (n.kind !== "memory" && !full && n.excerpt !== String(n.text || "").trim()) foot += '<button class="btn" type="button" id="pn-more">Ver nota inteira</button>';
       if (n.kind === "memory") {
         var anchor = n.anchor ? nodeByKey(n.anchor) : null;
         html += '<div class="pn-meta">Guardada em ' + esc(fmtDateTime(n.createdAt) || "—") + "</div>";
         if (anchor) html += '<div class="pn-section"><div class="pn-title">Âncora</div><div class="chips">' + chipHtml(anchor) + "</div></div>";
       }
       if (rel.length) html += '<div class="pn-section"><div class="pn-title">Ligada a</div><div class="chips">' + rel.map(chipHtml).join("") + "</div></div>";
-      if (n.kind === "memory" || n.kind === "note") {
-        html += '<div class="pn-section"><div class="pn-actions"><button class="btn danger" type="button" id="pn-delete">Apagar</button></div></div>';
-      }
+      if (n.kind === "memory" || n.kind === "note") foot += '<button class="btn danger" type="button" id="pn-delete">Apagar</button>';
       $("panel-scroll").innerHTML = html;
+      panelFoot(foot);
       var more = $("pn-more");
-      if (more) more.addEventListener("click", function () { full = true; body(); });
+      if (more) more.addEventListener("click", function () {
+        full = true;
+        var sc = $("panel-scroll"), keep = sc.scrollTop;
+        body();
+        sc.scrollTop = keep; // continua de onde ele estava lendo
+        panelEdge();
+      });
       var del = $("pn-delete");
       if (del) twoTap(del, "Tocar de novo para apagar", function () {
         if (n.kind === "memory") deleteMemory(n.docId); else deleteImported(n.docId);
@@ -1022,18 +1033,27 @@
     panelKey = null;
     $("panel-head").innerHTML = '<div class="pn-group">aglomerado</div><h2 id="panel-title">' + nodes.length + " notas sustentam a resposta</h2>";
     $("panel-scroll").innerHTML = '<div class="chips" style="margin-top:8px">' + nodes.map(chipHtml).join("") + "</div>";
+    panelFoot("");
     showPanel(true);
   }
+  function panelFoot(html) { var f = $("panel-foot"); f.innerHTML = html; f.hidden = !html; }
+  // conteúdo maior que o painel: esmaece a borda de onde há mais texto (a mesma pista da lista de respostas)
+  function panelEdge() {
+    var sc = $("panel-scroll");
+    sc.classList.toggle("more-below", sc.scrollTop + sc.clientHeight < sc.scrollHeight - 6);
+    sc.classList.toggle("more-above", sc.scrollTop > 6);
+  }
+  $("panel-scroll").addEventListener("scroll", panelEdge, { passive: true });
   function showPanel(open) {
     var was = !$("panel").hidden;
     $("panel").hidden = !open;
     document.body.classList.toggle("panel-open", open);
-    if (open) $("panel-scroll").scrollTop = 0;
+    if (open) { $("panel-scroll").scrollTop = 0; panelEdge(); }
     if (!open) panelKey = null;
     if (was !== open) measureView(); // a área livre da galáxia muda com o painel
   }
   if (typeof window.ResizeObserver === "function") {
-    try { new ResizeObserver(function () { measureView(); }).observe($("panel")); } catch (e) { /* sem observador */ }
+    try { new ResizeObserver(function () { measureView(); panelEdge(); }).observe($("panel")); } catch (e) { /* sem observador */ }
   }
   function closePanel() { showPanel(false); }
   $("panel-close").addEventListener("click", function () { overview(); });
@@ -1062,15 +1082,19 @@
 
   // ------------------------------------------------------------ feed ----
   var MAX_EX = 14;
-  function addExchange(q, label) {
+  // atTop: entra antes das trocas que já estão na lista (a saudação que chega depois de o usuário já ter perguntado)
+  function addExchange(q, label, atTop) {
     var root = document.createElement("article");
     root.className = "ex glass";
     root.innerHTML = (q ? '<div class="ex-q"><b>' + esc(label || "Você") + "</b></div>" : "") + '<div class="ex-a"></div><div class="ex-meta"></div>';
     if (q) root.querySelector(".ex-q").appendChild(document.createTextNode(q));
     var feed = $("feed");
-    feedFollow = true;
-    feed.appendChild(root);
-    while (feed.children.length > MAX_EX) feed.removeChild(feed.firstChild);
+    if (atTop && feed.firstChild) feed.insertBefore(root, feed.firstChild);
+    else {
+      feedFollow = true;
+      feed.appendChild(root);
+      while (feed.children.length > MAX_EX) feed.removeChild(feed.firstChild);
+    }
     var ex = { root: root, a: root.querySelector(".ex-a"), meta: root.querySelector(".ex-meta"), chips: null };
     scrollFeed();
     return ex;
@@ -1136,7 +1160,7 @@
     b.type = "button";
     b.className = "btn";
     b.textContent = "Tentar de novo";
-    b.addEventListener("click", function () { b.disabled = true; fn(); });
+    b.addEventListener("click", function () { b.disabled = true; userActs++; fn(); });
     ex.meta.appendChild(b);
     scrollFeed();
   }
@@ -1797,6 +1821,9 @@
 
   // ------------------------------------------------------------ fluxo de conversa ----
   var RUN = null; // pedido em andamento: {ctl}
+  // ações do usuário (mensagem enviada, Parar, "silêncio", toque no reator, briefing pedido, Tentar de novo).
+  // Só uma ação dele cancela um pedido; o que a página faz sozinha (o briefing da ativação) nunca passa na frente.
+  var userActs = 0;
   function startRun(ex, keepVoice) {
     stopRun(keepVoice);
     var run = { ctl: new AbortController(), ex: ex || null };
@@ -1808,7 +1835,12 @@
       var old = RUN;
       RUN = null;
       try { old.ctl.abort(); } catch (e) { /* já abortado */ }
-      if (old.ex && old.ex.a.classList.contains("pending")) exText(old.ex, "Parado.");
+      if (old.ex && old.ex.a.classList.contains("pending")) {
+        if (old.auto) { // briefing automático atropelado por um pedido do usuário: vira dica, não "Parado."
+          exText(old.ex, C.lgOf(S.settings.lang) === "pt" ? "Briefing adiado." : "Briefing postponed.");
+          exMeta(old.ex, C.lgOf(S.settings.lang) === "pt" ? "é só dizer “o que tenho hoje?”" : "just say “what's on today?”");
+        } else exText(old.ex, "Parado.");
+      }
     }
     setThinking(false);
     setStreaming(false);
@@ -2086,10 +2118,13 @@
   }
 
   async function briefing(fromActivation) {
+    if (fromActivation && RUN) return; // o automático nunca cancela um pedido do usuário
     var ex = addExchange(fromActivation ? "Briefing do dia" : "O que tenho hoje?", fromActivation ? "JARVIS" : "Você");
     var run = startRun(ex, fromActivation);
+    run.auto = !!fromActivation;
     exPending(ex, "Lendo a agenda…");
     var mcp = await mcpPromise;
+    if (!alive(run)) return;
     if (!mcp) {
       var msg = mcpCopy({ code: "no_mcp" }, GCAL);
       setAgendaState("off", msg);
@@ -2118,6 +2153,7 @@
     if (!alive(run)) return;
     exEvents(ex, events);
     var sample = await samplePromise;
+    if (!alive(run)) return;
     if (!events.length || !sample || S.brain !== "on") {
       var line = C.localBriefing(events, S.settings.lang);
       exText(ex, line);
@@ -2217,6 +2253,7 @@
   function submit(raw) {
     var text = String(raw || "").trim();
     if (!text) return;
+    userActs++;
     disarmFrame();
     var intent;
     try { intent = C.parseIntent(text, { humor: S.settings.humor }); } catch (e) { intent = { kind: "ask", text: text, agenda: false }; }
@@ -2243,10 +2280,11 @@
       : intent.kind === "briefing" ? briefing(false)
       : intent.kind === "journal" ? journal(intent.window, text)
       : ask(intent.text || text, intent);
+    var mine = RUN; // cada pedido abre o seu run antes do primeiro await
     Promise.resolve(p).catch(function (e) {
       console.warn("JARVIS: falha inesperada", e);
       setStatus("Algo deu errado nesse pedido. Tente de novo.", true, 6000);
-      stopRun();
+      if (RUN === mine) stopRun(); // um pedido mais novo dele segue intacto
     });
   }
 
@@ -2261,6 +2299,7 @@
   async function activate() {
     if (S.activated) return;
     S.activated = true;
+    var acts = userActs;
     Voice.unlock();          // dentro do gesto: destrava a fala e o AudioContext
     chime(true);
     $("card").hidden = true;
@@ -2273,22 +2312,32 @@
     setStatus("Inicializando…");
     await Promise.race([bootReady.then(function () { return firstSnap; }), sleep(2500)]);
     await Promise.race([samplePromise, sleep(1500)]);
-    setStatus("");
+    if ($("status").textContent === "Inicializando…") setStatus("");
+    // enquanto a página se preparava, ele já pediu algo (pergunta, memória, "para") ou há um pedido em curso:
+    // a saudação entra calada no topo da lista e o briefing automático não começa — nada aqui cancela, atropela
+    // ou fala por cima do pedido dele. O briefing continua a um "o que tenho hoje?" de distância.
+    var userFirst = userActs !== acts || !!RUN;
     var c = counts();
     var greet = C.greetingLine(S.settings.lang, c.notes, c.memories);
-    var ex = addExchange("");
+    var ex = addExchange("", null, userFirst);
     exText(ex, greet);
-    Voice.speakText(greet);
+    if (!userFirst) Voice.speakText(greet);
     if (S.brain === "off" && S.brainNote) exMeta(ex, '<span class="warn">' + esc(S.brainNote) + "</span>");
     if (Store.mode === "local") exMeta(ex, '<span class="warn">Sem conta conectada: memórias só neste aparelho.</span>');
+    if (userFirst) {
+      exMeta(ex, "<span>" + esc(C.lgOf(S.settings.lang) === "pt" ? "Briefing do dia: é só dizer “o que tenho hoje?”." : "For today's briefing, just say “what's on my agenda?”.") + "</span>");
+      return;
+    }
     try { await briefing(true); } catch (e) { console.warn("JARVIS: briefing", e); }
   }
   $("activate").addEventListener("click", function () { activate().catch(function (e) { console.warn("JARVIS: ativação", e); }); });
   $("chip-agenda").addEventListener("click", function () {
     if (!S.activated) { activate().catch(function () {}); return; }
+    userActs++;
     briefing(false).catch(function () {});
   });
   $("reactor").addEventListener("click", function () {
+    userActs++;
     Voice.stop();
     if (S.activated && !S.thinking && !S.streaming) setStatus("Silêncio.", false, 1500);
   });
@@ -2302,7 +2351,7 @@
   function handleSend() {
     var text = box.value;
     if (!text.trim()) {
-      if (S.thinking || S.streaming || S.speaking) { stopRun(); setStatus("Parado.", false, 1500); }
+      if (S.thinking || S.streaming || S.speaking) { userActs++; stopRun(); setStatus("Parado.", false, 1500); }
       return;
     }
     box.value = "";

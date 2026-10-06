@@ -62,7 +62,7 @@ body {
   color: var(--ink);
   font: 400 16px/1.5 var(--font-body);
   -webkit-text-size-adjust: 100%;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: var(--clear);
   -webkit-font-smoothing: antialiased;
 }
 body::before {
@@ -72,9 +72,9 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(60% 50% at 70% 30%, var(--nebula-a), transparent 70%),
-    radial-gradient(45% 40% at 20% 75%, var(--nebula-c), transparent 70%),
-    radial-gradient(35% 30% at 85% 85%, var(--nebula-b), transparent 70%),
+    radial-gradient(60% 50% at 70% 30%, var(--nebula-a), var(--clear) 70%),
+    radial-gradient(45% 40% at 20% 75%, var(--nebula-c), var(--clear) 70%),
+    radial-gradient(35% 30% at 85% 85%, var(--nebula-b), var(--clear) 70%),
     var(--void);
 }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -110,13 +110,13 @@ a { color: var(--arc); }
   display: flex; align-items: center; gap: 12px;
   padding: calc(env(safe-area-inset-top, 0px) + 10px) max(var(--gutter), env(safe-area-inset-right, 0px)) 22px max(var(--gutter), env(safe-area-inset-left, 0px));
   /* faixa escura firme atrás da telemetria: um brilho de estrela passando atrás não apaga o texto */
-  background: linear-gradient(to bottom, var(--top-fade) 0%, var(--top-fade) 55%, transparent 100%);
+  background: linear-gradient(to bottom, var(--top-fade) 0%, var(--top-fade) 55%, var(--clear) 100%);
   pointer-events: none;
 }
 #topbar > * { pointer-events: auto; }
 .reactor {
   width: 52px; height: 52px; flex: none; padding: 2px; border: 0; background: none; border-radius: 50%;
-  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--glow) 60%, transparent));
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--glow) 60%, var(--clear)));
 }
 .reactor svg { width: 100%; height: 100%; overflow: visible; display: block; }
 .reactor .ring { fill: none; stroke: var(--glow); stroke-width: 1.2; opacity: 0.55; }
@@ -225,7 +225,22 @@ body.closeup #legend { top: calc(env(safe-area-inset-top, 0px) + 138px); max-hei
   font-size: 22px; line-height: 1; color: var(--ink-2);
 }
 #panel-close:hover, .sheet-close:hover { color: var(--ink); border-color: var(--line-2); }
-#panel-scroll { overflow: auto; padding: 4px 18px 18px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+#panel-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 18px 18px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* nota maior que o painel: as bordas esmaecem para mostrar que há mais para rolar (como a lista de respostas) */
+#panel-scroll.more-below {
+  -webkit-mask-image: linear-gradient(to bottom, var(--void) calc(100% - 36px), var(--clear));
+  mask-image: linear-gradient(to bottom, var(--void) calc(100% - 36px), var(--clear));
+}
+#panel-scroll.more-above {
+  -webkit-mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px);
+  mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px);
+}
+#panel-scroll.more-above.more-below {
+  -webkit-mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px, var(--void) calc(100% - 36px), var(--clear));
+  mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px, var(--void) calc(100% - 36px), var(--clear));
+}
+/* ações do painel (ver a nota inteira, apagar): rodapé fixo, sempre à mão, por mais longa que seja a nota */
+#panel-foot { flex: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 18px 14px; border-top: 1px solid var(--line); }
 .pn-group { display: inline-flex; align-items: center; gap: 8px; font: 500 11.5px/1.2 var(--font-mono); color: var(--ink-2);
   text-transform: uppercase; letter-spacing: 0.1em; }
 #panel h2 { margin: 8px 0 2px; font: 600 21px/1.25 var(--font-display); letter-spacing: 0.02em; text-wrap: balance; overflow-wrap: anywhere; }
@@ -234,7 +249,7 @@ body.closeup #legend { top: calc(env(safe-area-inset-top, 0px) + 138px); max-hei
 .pn-body code { font: 13px var(--font-mono); background: var(--glass-hi); padding: 1px 5px; border-radius: 5px; }
 .pn-body .h { font-weight: 600; color: var(--ink); font-family: var(--font-display); letter-spacing: 0.02em; }
 .wl { color: var(--arc); cursor: pointer; text-decoration: none; border-bottom: 1px dashed var(--line-2); background: none; border-top: 0; border-left: 0; border-right: 0; padding: 0; font: inherit; }
-.wl.dead { color: var(--ink-2); cursor: default; border-bottom-color: transparent; }
+.wl.dead { color: var(--ink-2); cursor: default; border-bottom-color: var(--clear); }
 .pn-meta { margin-top: 12px; font: 400 12.5px/1.5 var(--font-mono); color: var(--ink-2); }
 .pn-actions { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
 .pn-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -273,7 +288,7 @@ body.closeup #legend { top: calc(env(safe-area-inset-top, 0px) + 138px); max-hei
 .btn:hover { border-color: var(--arc); }
 .btn.danger { border-color: var(--alert); color: var(--alert); }
 .btn.danger.armed { background: var(--alert); color: var(--void); }
-.btn.primary { background: var(--arc); color: var(--on-arc); border-color: transparent; }
+.btn.primary { background: var(--arc); color: var(--on-arc); border-color: var(--clear); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
@@ -303,13 +318,13 @@ a.chip .meta { color: var(--ink-2); font-family: var(--font-mono); font-size: 11
   display: flex; flex-direction: column; gap: 8px; overflow-y: auto; overscroll-behavior: contain;
   max-height: 34vh; max-height: min(34vh, calc(var(--vvh, 100vh) * 0.34));
   padding-top: 18px; -webkit-overflow-scrolling: touch;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, var(--void) 18px);
-  mask-image: linear-gradient(to bottom, transparent, var(--void) 18px);
+  -webkit-mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px);
+  mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px);
 }
 /* resposta maior que a lista: a borda de baixo esmaece para mostrar que há mais para rolar */
 #feed.more-below {
-  -webkit-mask-image: linear-gradient(to bottom, transparent, var(--void) 18px, var(--void) calc(100% - 30px), transparent);
-  mask-image: linear-gradient(to bottom, transparent, var(--void) 18px, var(--void) calc(100% - 30px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px, var(--void) calc(100% - 30px), var(--clear));
+  mask-image: linear-gradient(to bottom, var(--clear), var(--void) 18px, var(--void) calc(100% - 30px), var(--clear));
 }
 #feed:empty { display: none; }
 .ex { padding: 12px 16px 14px; animation: rise 0.3s ease-out; flex: none; background: var(--glass-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -364,7 +379,7 @@ a.chip .meta { color: var(--ink-2); font-family: var(--font-mono); font-size: 11
 .round:hover { border-color: var(--line-2); }
 #menu-btn { font-size: 24px; letter-spacing: 0; }
 #q {
-  flex: 1; min-width: 0; min-height: 48px; max-height: 140px; resize: none; border: 0; outline: 0; background: transparent;
+  flex: 1; min-width: 0; min-height: 48px; max-height: 140px; resize: none; border: 0; outline: 0; background: var(--clear);
   color: var(--ink); font: 400 17px/1.4 var(--font-body); padding: 12px 6px; overflow-y: auto;
 }
 #q::placeholder { color: var(--ink-3); }
@@ -422,7 +437,7 @@ a.chip .meta { color: var(--ink-2); font-family: var(--font-mono); font-size: 11
 .seg label small { display: block; font: 400 10.5px/1.2 var(--font-mono); letter-spacing: 0.02em; color: var(--ink-3); }
 .seg input:checked + label { background: var(--arc-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
 .seg input:focus-visible + label { outline: 2px solid var(--arc); outline-offset: 2px; }
-input[type="range"] { width: 100%; height: 44px; accent-color: var(--arc); background: transparent; }
+input[type="range"] { width: 100%; height: 44px; accent-color: var(--arc); background: var(--clear); }
 select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--void-2); color: var(--ink); padding: 0 12px; font-size: 16px; max-width: 100%; }
 .switch { position: relative; width: 56px; height: 32px; flex: none; }
 .switch input { position: absolute; inset: -6px; width: calc(100% + 12px); height: calc(100% + 12px); opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
@@ -527,6 +542,7 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
     <button id="panel-close" type="button" aria-label="Fechar painel">×</button>
   </div>
   <div id="panel-scroll"></div>
+  <div id="panel-foot" hidden></div>
 </aside>
 
 <section id="console" aria-label="Console do JARVIS">
@@ -2063,7 +2079,7 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
     try {
       var sz = galaxySize();
       Graph = new Ctor(el, { controlType: "orbit" });
-      Graph.backgroundColor(TOK.clear || "transparent")
+      Graph.backgroundColor(TOK.clear || TOK.void) // o token --clear; sem ele, o fundo do próprio :root
         .showNavInfo(false)
         // sem arrastar estrelas: o fim do arrasto do 3d-force-graph manda um pointerup sintético de toque
         // que derruba os OrbitControls com TypeError a cada clique de mouse; tocar/clicar continua abrindo o painel
@@ -2071,12 +2087,14 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
         .width(sz.w).height(sz.h)
         .nodeId("key")
         .nodeLabel(function (n) { return '<div class="tip"><b>' + esc(n.label) + "</b><span>" + esc(n.group) + "</span></div>"; })
-        // sem o realce (só o UMD), a estrela apagada fica translúcida: no close-up não vira um disco cinza pesado
-        .nodeColor(function (n) { return (!HL.nodes.size || HL.nodes.has(n.key)) ? colorOf(n.group) : rgba(TOK.dim, 0.35); })
-        .nodeVal(function (n) { var r = radius(n); return r * r / 4; })
+        // sem o realce (só o UMD), a estrela apagada vira um fantasma pequeno da própria cor: no close-up não sobra
+        // um disco cinza opaco na frente da fonte (o realce desenha as próprias estrelas e ignora estas duas)
+        .nodeColor(function (n) { return isLit(n) ? colorOf(n.group) : rgba(colorOf(n.group), DIM_NODE_ALPHA); })
+        .nodeVal(function (n) { var r = radius(n); return r * r / 4 * (isLit(n) ? 1 : DIM_NODE_VAL); })
         .nodeOpacity(0.95)
         .nodeResolution(14)
-        .linkColor(function (l) { return HL.links.size ? (HL.links.has(l) ? TOK.linkHl : TOK.linkDim) : TOK.link; })
+        // com algo aceso (mesmo uma memória ainda sem ligações), as demais ligações recuam; sem o realce, recuam de verdade
+        .linkColor(function (l) { return HL.nodes.size ? (HL.links.has(l) ? TOK.linkHl : S.bloom ? TOK.linkDim : rgba(TOK.link, DIM_LINK_ALPHA)) : TOK.link; })
         .linkOpacity(0.5)
         .linkWidth(function (l) { return HL.links.has(l) ? 0.7 : 0; })
         .linkDirectionalParticles(function (l) { return HL.links.has(l) ? 3 : 0; })
@@ -2142,6 +2160,10 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
     ENH = ev && ev.detail && ev.detail.THREE ? ev.detail : null;
     applyEnhancement();
   });
+  // apagadas sem o realce: cor da pasta a 7% (vezes nodeOpacity; a luz forte do 3d-force-graph ainda a clareia),
+  // 30% do volume (≈67% do raio) e ligações a 16% — um fantasma discreto, mesmo no close-up de uma memória
+  var DIM_NODE_ALPHA = 0.07, DIM_NODE_VAL = 0.3, DIM_LINK_ALPHA = 0.16;
+  function isLit(n) { return !HL.nodes.size || HL.nodes.has(n.key); }
   function nodeObject(n) {
     var THREE = ENH.THREE;
     var color = new THREE.Color(colorOf(n.group));
@@ -2474,7 +2496,7 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
       if (!n.__pulse) n.__glow.scale.setScalar(n.__r * (focus ? 8 : 5.5));
     });
     try {
-      if (!S.bloom) Graph.nodeColor(Graph.nodeColor());
+      if (!S.bloom) Graph.nodeColor(Graph.nodeColor()).nodeVal(Graph.nodeVal());
       Graph.linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()).linkDirectionalParticles(Graph.linkDirectionalParticles());
     } catch (e) { /* galáxia ocupada */ }
   }
@@ -2700,20 +2722,25 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
       '<h2 id="panel-title">' + esc(n.label) + '</h2><div class="pn-path">' + esc(n.path || "") + "</div>";
     function body() {
       var text = n.kind === "memory" ? n.fact : full ? n.text : n.excerpt;
-      var html = '<div class="pn-body">' + renderMd(text) + "</div>";
-      if (n.kind !== "memory" && !full && n.excerpt !== String(n.text || "").trim()) html += '<div class="pn-actions"><button class="btn" type="button" id="pn-more">Ver nota inteira</button></div>';
+      var html = '<div class="pn-body">' + renderMd(text) + "</div>", foot = "";
+      if (n.kind !== "memory" && !full && n.excerpt !== String(n.text || "").trim()) foot += '<button class="btn" type="button" id="pn-more">Ver nota inteira</button>';
       if (n.kind === "memory") {
         var anchor = n.anchor ? nodeByKey(n.anchor) : null;
         html += '<div class="pn-meta">Guardada em ' + esc(fmtDateTime(n.createdAt) || "—") + "</div>";
         if (anchor) html += '<div class="pn-section"><div class="pn-title">Âncora</div><div class="chips">' + chipHtml(anchor) + "</div></div>";
       }
       if (rel.length) html += '<div class="pn-section"><div class="pn-title">Ligada a</div><div class="chips">' + rel.map(chipHtml).join("") + "</div></div>";
-      if (n.kind === "memory" || n.kind === "note") {
-        html += '<div class="pn-section"><div class="pn-actions"><button class="btn danger" type="button" id="pn-delete">Apagar</button></div></div>';
-      }
+      if (n.kind === "memory" || n.kind === "note") foot += '<button class="btn danger" type="button" id="pn-delete">Apagar</button>';
       $("panel-scroll").innerHTML = html;
+      panelFoot(foot);
       var more = $("pn-more");
-      if (more) more.addEventListener("click", function () { full = true; body(); });
+      if (more) more.addEventListener("click", function () {
+        full = true;
+        var sc = $("panel-scroll"), keep = sc.scrollTop;
+        body();
+        sc.scrollTop = keep; // continua de onde ele estava lendo
+        panelEdge();
+      });
       var del = $("pn-delete");
       if (del) twoTap(del, "Tocar de novo para apagar", function () {
         if (n.kind === "memory") deleteMemory(n.docId); else deleteImported(n.docId);
@@ -2726,18 +2753,27 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
     panelKey = null;
     $("panel-head").innerHTML = '<div class="pn-group">aglomerado</div><h2 id="panel-title">' + nodes.length + " notas sustentam a resposta</h2>";
     $("panel-scroll").innerHTML = '<div class="chips" style="margin-top:8px">' + nodes.map(chipHtml).join("") + "</div>";
+    panelFoot("");
     showPanel(true);
   }
+  function panelFoot(html) { var f = $("panel-foot"); f.innerHTML = html; f.hidden = !html; }
+  // conteúdo maior que o painel: esmaece a borda de onde há mais texto (a mesma pista da lista de respostas)
+  function panelEdge() {
+    var sc = $("panel-scroll");
+    sc.classList.toggle("more-below", sc.scrollTop + sc.clientHeight < sc.scrollHeight - 6);
+    sc.classList.toggle("more-above", sc.scrollTop > 6);
+  }
+  $("panel-scroll").addEventListener("scroll", panelEdge, { passive: true });
   function showPanel(open) {
     var was = !$("panel").hidden;
     $("panel").hidden = !open;
     document.body.classList.toggle("panel-open", open);
-    if (open) $("panel-scroll").scrollTop = 0;
+    if (open) { $("panel-scroll").scrollTop = 0; panelEdge(); }
     if (!open) panelKey = null;
     if (was !== open) measureView(); // a área livre da galáxia muda com o painel
   }
   if (typeof window.ResizeObserver === "function") {
-    try { new ResizeObserver(function () { measureView(); }).observe($("panel")); } catch (e) { /* sem observador */ }
+    try { new ResizeObserver(function () { measureView(); panelEdge(); }).observe($("panel")); } catch (e) { /* sem observador */ }
   }
   function closePanel() { showPanel(false); }
   $("panel-close").addEventListener("click", function () { overview(); });
@@ -2766,15 +2802,19 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
 
   // ------------------------------------------------------------ feed ----
   var MAX_EX = 14;
-  function addExchange(q, label) {
+  // atTop: entra antes das trocas que já estão na lista (a saudação que chega depois de o usuário já ter perguntado)
+  function addExchange(q, label, atTop) {
     var root = document.createElement("article");
     root.className = "ex glass";
     root.innerHTML = (q ? '<div class="ex-q"><b>' + esc(label || "Você") + "</b></div>" : "") + '<div class="ex-a"></div><div class="ex-meta"></div>';
     if (q) root.querySelector(".ex-q").appendChild(document.createTextNode(q));
     var feed = $("feed");
-    feedFollow = true;
-    feed.appendChild(root);
-    while (feed.children.length > MAX_EX) feed.removeChild(feed.firstChild);
+    if (atTop && feed.firstChild) feed.insertBefore(root, feed.firstChild);
+    else {
+      feedFollow = true;
+      feed.appendChild(root);
+      while (feed.children.length > MAX_EX) feed.removeChild(feed.firstChild);
+    }
     var ex = { root: root, a: root.querySelector(".ex-a"), meta: root.querySelector(".ex-meta"), chips: null };
     scrollFeed();
     return ex;
@@ -2840,7 +2880,7 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
     b.type = "button";
     b.className = "btn";
     b.textContent = "Tentar de novo";
-    b.addEventListener("click", function () { b.disabled = true; fn(); });
+    b.addEventListener("click", function () { b.disabled = true; userActs++; fn(); });
     ex.meta.appendChild(b);
     scrollFeed();
   }
@@ -3501,6 +3541,9 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
 
   // ------------------------------------------------------------ fluxo de conversa ----
   var RUN = null; // pedido em andamento: {ctl}
+  // ações do usuário (mensagem enviada, Parar, "silêncio", toque no reator, briefing pedido, Tentar de novo).
+  // Só uma ação dele cancela um pedido; o que a página faz sozinha (o briefing da ativação) nunca passa na frente.
+  var userActs = 0;
   function startRun(ex, keepVoice) {
     stopRun(keepVoice);
     var run = { ctl: new AbortController(), ex: ex || null };
@@ -3512,7 +3555,12 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
       var old = RUN;
       RUN = null;
       try { old.ctl.abort(); } catch (e) { /* já abortado */ }
-      if (old.ex && old.ex.a.classList.contains("pending")) exText(old.ex, "Parado.");
+      if (old.ex && old.ex.a.classList.contains("pending")) {
+        if (old.auto) { // briefing automático atropelado por um pedido do usuário: vira dica, não "Parado."
+          exText(old.ex, C.lgOf(S.settings.lang) === "pt" ? "Briefing adiado." : "Briefing postponed.");
+          exMeta(old.ex, C.lgOf(S.settings.lang) === "pt" ? "é só dizer “o que tenho hoje?”" : "just say “what's on today?”");
+        } else exText(old.ex, "Parado.");
+      }
     }
     setThinking(false);
     setStreaming(false);
@@ -3790,10 +3838,13 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
   }
 
   async function briefing(fromActivation) {
+    if (fromActivation && RUN) return; // o automático nunca cancela um pedido do usuário
     var ex = addExchange(fromActivation ? "Briefing do dia" : "O que tenho hoje?", fromActivation ? "JARVIS" : "Você");
     var run = startRun(ex, fromActivation);
+    run.auto = !!fromActivation;
     exPending(ex, "Lendo a agenda…");
     var mcp = await mcpPromise;
+    if (!alive(run)) return;
     if (!mcp) {
       var msg = mcpCopy({ code: "no_mcp" }, GCAL);
       setAgendaState("off", msg);
@@ -3822,6 +3873,7 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
     if (!alive(run)) return;
     exEvents(ex, events);
     var sample = await samplePromise;
+    if (!alive(run)) return;
     if (!events.length || !sample || S.brain !== "on") {
       var line = C.localBriefing(events, S.settings.lang);
       exText(ex, line);
@@ -3921,6 +3973,7 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
   function submit(raw) {
     var text = String(raw || "").trim();
     if (!text) return;
+    userActs++;
     disarmFrame();
     var intent;
     try { intent = C.parseIntent(text, { humor: S.settings.humor }); } catch (e) { intent = { kind: "ask", text: text, agenda: false }; }
@@ -3947,10 +4000,11 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
       : intent.kind === "briefing" ? briefing(false)
       : intent.kind === "journal" ? journal(intent.window, text)
       : ask(intent.text || text, intent);
+    var mine = RUN; // cada pedido abre o seu run antes do primeiro await
     Promise.resolve(p).catch(function (e) {
       console.warn("JARVIS: falha inesperada", e);
       setStatus("Algo deu errado nesse pedido. Tente de novo.", true, 6000);
-      stopRun();
+      if (RUN === mine) stopRun(); // um pedido mais novo dele segue intacto
     });
   }
 
@@ -3965,6 +4019,7 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
   async function activate() {
     if (S.activated) return;
     S.activated = true;
+    var acts = userActs;
     Voice.unlock();          // dentro do gesto: destrava a fala e o AudioContext
     chime(true);
     $("card").hidden = true;
@@ -3977,22 +4032,32 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
     setStatus("Inicializando…");
     await Promise.race([bootReady.then(function () { return firstSnap; }), sleep(2500)]);
     await Promise.race([samplePromise, sleep(1500)]);
-    setStatus("");
+    if ($("status").textContent === "Inicializando…") setStatus("");
+    // enquanto a página se preparava, ele já pediu algo (pergunta, memória, "para") ou há um pedido em curso:
+    // a saudação entra calada no topo da lista e o briefing automático não começa — nada aqui cancela, atropela
+    // ou fala por cima do pedido dele. O briefing continua a um "o que tenho hoje?" de distância.
+    var userFirst = userActs !== acts || !!RUN;
     var c = counts();
     var greet = C.greetingLine(S.settings.lang, c.notes, c.memories);
-    var ex = addExchange("");
+    var ex = addExchange("", null, userFirst);
     exText(ex, greet);
-    Voice.speakText(greet);
+    if (!userFirst) Voice.speakText(greet);
     if (S.brain === "off" && S.brainNote) exMeta(ex, '<span class="warn">' + esc(S.brainNote) + "</span>");
     if (Store.mode === "local") exMeta(ex, '<span class="warn">Sem conta conectada: memórias só neste aparelho.</span>');
+    if (userFirst) {
+      exMeta(ex, "<span>" + esc(C.lgOf(S.settings.lang) === "pt" ? "Briefing do dia: é só dizer “o que tenho hoje?”." : "For today's briefing, just say “what's on my agenda?”.") + "</span>");
+      return;
+    }
     try { await briefing(true); } catch (e) { console.warn("JARVIS: briefing", e); }
   }
   $("activate").addEventListener("click", function () { activate().catch(function (e) { console.warn("JARVIS: ativação", e); }); });
   $("chip-agenda").addEventListener("click", function () {
     if (!S.activated) { activate().catch(function () {}); return; }
+    userActs++;
     briefing(false).catch(function () {});
   });
   $("reactor").addEventListener("click", function () {
+    userActs++;
     Voice.stop();
     if (S.activated && !S.thinking && !S.streaming) setStatus("Silêncio.", false, 1500);
   });
@@ -4006,7 +4071,7 @@ select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line-2);
   function handleSend() {
     var text = box.value;
     if (!text.trim()) {
-      if (S.thinking || S.streaming || S.speaking) { stopRun(); setStatus("Parado.", false, 1500); }
+      if (S.thinking || S.streaming || S.speaking) { userActs++; stopRun(); setStatus("Parado.", false, 1500); }
       return;
     }
     box.value = "";

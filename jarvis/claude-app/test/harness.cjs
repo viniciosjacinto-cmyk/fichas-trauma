@@ -371,9 +371,61 @@ function helpers(s) {
         return c || null;
       }, { timeout, desc });
     },
-    async shot(name) {
+    // the UI at rest: no finite CSS animation/transition running (entry animations of the answer, panel, sheet; the
+    // console sliding) and the camera still across consecutive frames: target, distance to the target, height and the
+    // view offset unchanged. The idle drift only orbits the camera around a fixed target at a fixed distance and height,
+    // so it does not count as moving; endless loops (reactor, "Pensando…") and the reactor's live pulse never settle
+    // and are ignored. Returns {settled, ms, why}.
+    async settleView({ timeout = 8000, calmFrames = 3 } = {}) {
+      return page().evaluate(async ([timeout, calmFrames]) => {
+        const t0 = performance.now(), end = t0 + timeout;
+        // one rendered frame (software WebGL may run at a few fps: a short timer would compare a frame with itself);
+        // the timer only rescues a page whose animation frames are throttled
+        const frame = () => new Promise(r => { let done = false; const go = () => { if (!done) { done = true; r(); } }; requestAnimationFrame(go); setTimeout(go, 1000); });
+        const camOf = () => {
+          const g = window.__t && window.__t.graph();
+          if (!g) return null;
+          try {
+            const c = g.camera(), ctl = g.controls(), tg = ctl && ctl.target, v = c.view;
+            if (!c || !tg) return null;
+            return { tg: [tg.x, tg.y, tg.z], d: Math.hypot(c.position.x - tg.x, c.position.y - tg.y, c.position.z - tg.z), y: c.position.y,
+              off: v && v.enabled ? [v.offsetX, v.offsetY] : [0, 0] };
+          } catch (e) { return null; }
+        };
+        const camMoved = (a, b) => !!a && !!b && (a.tg.some((v, i) => Math.abs(v - b.tg[i]) > 0.05) || Math.abs(a.d - b.d) > 0.05 ||
+          Math.abs(a.y - b.y) > 0.05 || a.off.some((v, i) => Math.abs(v - b.off[i]) > 0.5));
+        const cssBusy = () => {
+          let list = [];
+          try { list = document.getAnimations(); } catch (e) { return null; }
+          const busy = list.filter(a => {
+            if (a.playState !== "running") return false;
+            const el = a.effect && a.effect.target;
+            if (el && el.closest && el.closest("#reactor")) return false;
+            const tm = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
+            return !!tm && isFinite(tm.endTime);
+          });
+          return busy.length ? busy.map(a => (a.animationName || a.transitionProperty || "anim") + "@" + ((a.effect.target && (a.effect.target.id || a.effect.target.className)) || "?")).slice(0, 3).join(", ") : null;
+        };
+        let prev = camOf(), calm = 0, why = "";
+        while (performance.now() < end) {
+          await frame();
+          const cur = camOf(), css = cssBusy();
+          const moving = camMoved(prev, cur);
+          prev = cur;
+          why = moving ? "camera moving" : css ? "css: " + css : "";
+          calm = why ? 0 : calm + 1;
+          if (calm >= calmFrames) return { settled: true, ms: Math.round(performance.now() - t0), why: "" };
+        }
+        return { settled: false, ms: Math.round(performance.now() - t0), why };
+      }, [timeout, calmFrames]).catch(e => ({ settled: false, ms: 0, why: "unreadable: " + String(e && e.message || e).split("\n")[0] }));
+    },
+    async shot(name, { settle = true } = {}) {
       fs.mkdirSync(SHOTS, { recursive: true });
       const f = path.join(SHOTS, name.replace(/[^\w.-]+/g, "_") + ".png");
+      if (settle) {
+        const st = await H.settleView();
+        if (!st.settled) s.notes.push(`screenshot ${name}: the view did not settle in ${st.ms} ms (${st.why})`);
+      }
       try { await page().screenshot({ path: f }); } catch (e) { return null; }
       return f;
     },

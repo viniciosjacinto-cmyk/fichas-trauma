@@ -31,7 +31,7 @@ Na primeira vez, o claude.ai pede três permissões: usar o Claude, ler o Google
 
 O microfone da página é bloqueado pelo claude.ai. Para falar, use o ditado do teclado: o 🎤 do teclado do iPad ou do iPhone, ou a tecla de ditado do Mac. O botão 🎙 do JARVIS mostra como. Para usar as suas notas, abra o menu ⋯ e toque em "Adicionar notas": arquivos `.md` ou `.txt` ficam guardados na sua conta. Não importe dados de pacientes.
 
-O código-fonte, a especificação e os testes do app ficam em `claude-app/`. O `jarvis.html` é montado com `python3 claude-app/src/assemble.py`. A bateria de testes roda com `sh claude-app/test/run-all.sh`: 182 testes unitários e 24 cenários no Chromium, com o claude.ai simulado.
+O código-fonte, a especificação e os testes do app ficam em `claude-app/`. O `jarvis.html` é montado com `python3 claude-app/src/assemble.py`. A bateria de testes roda com `sh claude-app/test/run-all.sh`: 182 testes unitários e 25 cenários no Chromium, com o claude.ai simulado.
 
 ## Instalar com um comando (Mac)
 
