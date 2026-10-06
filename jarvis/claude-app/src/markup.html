@@ -1,0 +1,140 @@
+<div id="galaxy" aria-hidden="true"></div>
+<div id="galaxy-msg" role="status">Montando a galáxia…</div>
+
+<div id="topbar" role="banner">
+  <button class="reactor" id="reactor" type="button" aria-label="Reator do JARVIS: toque para calar a voz">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle class="halo" cx="32" cy="32" r="20"/>
+      <circle class="ring" cx="32" cy="32" r="30"/>
+      <circle class="ticks" cx="32" cy="32" r="26.5"/>
+      <circle class="segs" cx="32" cy="32" r="21"/>
+      <circle class="core" cx="32" cy="32" r="8"/>
+    </svg>
+  </button>
+  <div class="brand-block">
+    <div class="brand">J.A.R.V.I.S.</div>
+    <div class="hud-line"><span class="st-row"><span class="st" id="hud-state">Em espera</span><span class="hum"> · humor <span id="hud-humor">70%</span></span></span><span class="sep" aria-hidden="true"> · </span><span id="hud-count">26 notas · 0 memórias</span></div>
+  </div>
+  <div class="hud-chips">
+    <button class="hud-chip" id="chip-tier" type="button" aria-label="Modo do cérebro: Rápido. Abrir ajustes"><span class="dot"></span><span id="chip-tier-label">Rápido</span></button>
+    <button class="hud-chip" id="chip-humor" type="button" aria-label="Humor: 70 por cento. Abrir ajustes">Humor <span id="chip-humor-value">70%</span></button>
+    <button class="hud-chip" id="chip-agenda" type="button" data-state="idle" aria-label="Agenda: ainda não lida. Tocar liga o JARVIS e lê a agenda" title="Agenda">
+      <span class="dot"></span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <span id="chip-agenda-label" class="sr-only">Agenda</span>
+    </button>
+  </div>
+</div>
+
+<div id="notices" aria-live="polite"></div>
+<nav id="legend" aria-label="Pastas da galáxia"></nav>
+<button id="view-all" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.2"/></svg>Galáxia inteira</button>
+
+<aside id="panel" class="glass" aria-labelledby="panel-title" hidden>
+  <div class="pn-head">
+    <div class="pn-head-text" id="panel-head"></div>
+    <button id="panel-close" type="button" aria-label="Fechar painel">×</button>
+  </div>
+  <div id="panel-scroll"></div>
+  <div id="panel-foot" hidden></div>
+</aside>
+
+<section id="console" aria-label="Console do JARVIS">
+  <div id="feed" aria-live="polite"></div>
+  <div id="card" class="glass">
+    <div class="card-eyebrow">Galáxia de notas · voz · agenda · PubMed</div>
+    <div class="card-title">JARVIS</div>
+    <p class="card-sub">Pergunte às suas notas, peça o briefing do dia ou pesquise no PubMed, por voz ou por texto.</p>
+    <button id="activate" type="button">Ativar JARVIS</button>
+    <div id="card-status" role="status">Carregando…</div>
+  </div>
+  <div class="dock-wrap" id="dock-wrap" hidden>
+    <div id="dictation-tip" role="status" hidden></div>
+    <div id="menu" class="glass" role="menu" aria-label="Menu do JARVIS" hidden>
+      <button type="button" role="menuitem" id="menu-import"><span class="mi" aria-hidden="true">+</span>Adicionar notas</button>
+      <button type="button" role="menuitem" id="menu-settings"><span class="mi" aria-hidden="true">⚙</span>Ajustes</button>
+      <button type="button" role="menuitem" id="menu-diary"><span class="mi" aria-hidden="true">◷</span>Diário de hoje</button>
+      <button type="button" role="menuitem" id="menu-help"><span class="mi" aria-hidden="true">?</span>Ajuda</button>
+    </div>
+    <form id="dock" class="glass" autocomplete="off">
+      <button class="round" id="mic" type="button" aria-label="Ditado: mostrar como ditar">🎙</button>
+      <label for="q" class="sr-only">Pergunta para o JARVIS</label>
+      <textarea id="q" name="q" rows="1" placeholder="Pergunte ou dite…" enterkeyhint="send" autocapitalize="sentences" spellcheck="true"></textarea>
+      <button id="send" type="submit">Enviar</button>
+      <button class="round" id="menu-btn" type="button" aria-label="Mais opções" aria-haspopup="menu" aria-expanded="false" aria-controls="menu">⋯</button>
+    </form>
+  </div>
+  <div id="status" role="status" aria-live="polite"></div>
+</section>
+
+<div id="scrim" hidden></div>
+<section id="sheet" class="glass" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+  <div class="sheet-head">
+    <h2 id="sheet-title">Ajustes</h2>
+    <button class="sheet-close" id="sheet-close" type="button" aria-label="Fechar">×</button>
+  </div>
+  <div id="sheet-scroll">
+
+    <div class="sheet-page" id="page-settings" hidden>
+      <div class="field">
+        <span class="lbl" id="tier-label">Modo do cérebro</span>
+        <div class="seg" role="radiogroup" aria-labelledby="tier-label">
+          <input type="radio" name="tier" id="tier-quick" value="quick"><label for="tier-quick">Rápido<small>Haiku · voz</small></label>
+          <input type="radio" name="tier" id="tier-default" value="default"><label for="tier-default">Normal<small>Sonnet</small></label>
+          <input type="radio" name="tier" id="tier-complex" value="complex"><label for="tier-complex">Máximo<small>Opus · demora</small></label>
+        </div>
+        <p class="hint">O uso sai da sua conta do Claude. Rápido responde quase na hora.</p>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="set-humor">Humor</label><output id="set-humor-out" for="set-humor">70%</output></div>
+        <input type="range" id="set-humor" min="0" max="100" step="5" value="70">
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="set-voice">Voz falada</label><span class="switch"><input type="checkbox" id="set-voice" checked><span></span></span></div>
+        <div class="field-row"><label for="set-rate">Velocidade</label><output id="set-rate-out" for="set-rate">1,00×</output></div>
+        <input type="range" id="set-rate" min="0.8" max="1.3" step="0.05" value="1">
+        <label for="set-voiceuri">Voz</label>
+        <select id="set-voiceuri"><option value="">Automática (a melhor disponível)</option></select>
+        <div><button class="btn" type="button" id="set-test-voice">Testar voz</button></div>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="set-lang">Idioma das respostas</label>
+          <select id="set-lang"><option value="pt-BR">Português (Brasil)</option><option value="en-GB">English (UK)</option></select></div>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="set-hide-samples">Esconder notas de exemplo</label><span class="switch"><input type="checkbox" id="set-hide-samples"><span></span></span></div>
+        <p class="hint">As 26 notas da Ficha de Trauma somem da galáxia; suas notas e memórias ficam.</p>
+      </div>
+      <div class="field"><p class="hint" id="set-storage">Verificando onde guardar suas memórias…</p></div>
+    </div>
+
+    <div class="sheet-page" id="page-import" hidden>
+      <p class="callout">Não importe dados de pacientes.</p>
+      <p class="empty">Arquivos .md, .markdown ou .txt (até 500 notas, 60 000 caracteres cada). O nome do arquivo vira o título da estrela.</p>
+      <div class="pn-actions">
+        <label class="btn primary" for="file-input" id="import-pick">Escolher arquivos</label>
+        <input type="file" id="file-input" class="sr-only" multiple accept=".md,.markdown,.txt,text/markdown,text/plain">
+      </div>
+      <div class="drop-zone" id="drop-zone">No Mac, dá para arrastar arquivos ou uma pasta inteira para a janela.</div>
+      <div class="progress" id="import-progress" role="status"></div>
+      <div class="field">
+        <div class="field-row"><span class="lbl" id="import-count">Nenhuma nota importada</span>
+          <button class="btn danger" type="button" id="import-clear" hidden>Remover todas</button></div>
+      </div>
+    </div>
+
+    <div class="sheet-page" id="page-diary" hidden>
+      <div id="diary-body"><p class="empty">Carregando o diário…</p></div>
+    </div>
+
+    <div class="sheet-page" id="page-help" hidden>
+      <ul class="help-list" id="help-list"></ul>
+      <div class="field">
+        <span class="lbl">Ditado</span>
+        <p class="hint">iPad e iPhone: toque no 🎤 do teclado e fale. Mac: aperte a tecla de ditado (🎤) ou Fn duas vezes. Enter envia.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+<div id="drop-overlay" hidden>Solte as notas (.md, .txt) aqui</div>
