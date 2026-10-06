@@ -11,7 +11,17 @@ Os 6 prompts do *Build Your Own JARVIS* (Zubair Trabzada · AI Workshop), execut
 
 Python 3 só com biblioteca padrão (roda no `python3` que vem no Mac) e uma biblioteca 3D via CDN. Sem npm, sem build.
 
-## Rodar
+## Instalar com um comando (Mac)
+
+Cole no Terminal (Cmd+Espaço, "Terminal"):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/viniciosjacinto-cmyk/fichas-trauma/claude/new-session-p67tuw/jarvis/instalar.sh | bash
+```
+
+Ele baixa o JARVIS para `~/JARVIS`, deixa o servidor ligando sozinho junto com o Mac, espera subir e abre o Chrome. Rodar de novo atualiza sem perder `config.json`, memórias e diário. Para o iPad, acrescente `-s -- --ipad` no fim (depois de instalar o Tailscale). Outras opções, no fim do comando do mesmo jeito: `--sem-inicio-automatico` (não liga junto com o Mac) e `bash ~/JARVIS/instalar.sh --desinstalar` (desliga e tira do início automático; a pasta fica). O registro fica em `~/JARVIS/jarvis.log`.
+
+## Rodar na mão
 
 ```bash
 cd jarvis
@@ -150,6 +160,7 @@ Sem Tailscale, dá para liberar outros nomes com `"allowed_hosts": ["meu-mac.loc
 | "A galáxia mudou no servidor" | A lista de notas mudou (outro `build.py` ou servidor reiniciado). Recarregue a página. |
 | "estourou o limite de tamanho (max_tokens)" | Tente de novo. Se repetir, baixe o `effort` em `config.json`. |
 | Porta ocupada | Já tem um `server.py` rodando. Feche o outro ou troque `port` em `config.json`. |
+| Reiniciei o Mac e localhost:4700 não abre | O início automático falhou. Rode o comando de instalar de novo (ele refaz o registro no launchd) e leia `~/JARVIS/jarvis.log`. |
 | Qualquer outra coisa | Cole o erro exato no Claude Code e diga "conserta". |
 
 ## Testes
@@ -173,6 +184,7 @@ São 32 testes, só biblioteca padrão; passam no Python 3.9 do Mac e no 3.11. U
 
 ```
 jarvis/
+├── instalar.sh       instala ou atualiza no Mac com um comando (launchd, Tailscale)
 ├── build.py          notas -> viewer/graph-data.js
 ├── server.py         servidor local: viewer/, /chat, /remember, /api/status
 ├── viewer/index.html galáxia, voz, painel, barra de pergunta
