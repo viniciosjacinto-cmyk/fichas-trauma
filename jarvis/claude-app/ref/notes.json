@@ -1,0 +1,158 @@
+[
+ {
+  "path": "app/Configuração do iPad.md",
+  "label": "Configuração do iPad",
+  "group": "app",
+  "text": "# Configuração do iPad\n\nAntes de usar na sala:\n- Acesso Guiado (Ajustes → Acessibilidade → Acesso Guiado): trava o aparelho no app; ninguém sai da ficha no meio do atendimento.\n- Data e Hora em ajuste automático (Ajustes → Geral → Data e Hora). Com o app em uso, o relógio do iPad é o oficial do atendimento.\n- Bloqueio automático: Nunca (Ajustes → Tela e Brilho). Tela apagando no meio da reanimação mata a adesão.\n- Capa que aguente álcool.\n- Carregador fixo na sala.\n\nVer [[Relógio do atendimento]] e [[Instalação no iPad]].\n"
+ },
+ {
+  "path": "app/Exportação de dados.md",
+  "label": "Exportação de dados",
+  "group": "app",
+  "text": "# Exportação de dados\n\nCasos → Exportar dados abre três saídas:\n- Copiar — cola direto numa planilha\n- Baixar CSV — separador ponto e vírgula, com BOM (abre certo no Excel em português)\n- Backup JSON — cópia integral, para não depender de um aparelho só\n\nO CSV vai para o [[REDCap]]. Os escores saem em colunas próprias, prefixadas com _: `_rts_t`, `_rts_ponderado`, `_iss`, `_triss_ps`, `_triss_coef`, `_shock_index`, `_rabt`.\n\nExporte ANTES de qualquer atualização do app e antes de limpar dados do Safari. Ver [[Limitações do app]].\n"
+ },
+ {
+  "path": "app/Ficha de Trauma.md",
+  "label": "Ficha de Trauma",
+  "group": "app",
+  "text": "# Ficha de Trauma\n\nApp offline de página única para o iPad da sala de trauma do PS de Cirurgia Geral do HSP. Guarda os casos no próprio aparelho e exporta CSV no fim do plantão.\n\nAbas: Identificação · Horários · iMIST-AMBO · Admissão · X-ABCDE · FAST / NEXUS · Hemostasia · Saída · Escores · Pós.\n\nCalcula sozinho: Glasgow, [[Shock Index]], [[RABT]], [[RTS]], [[NEXUS]], janela do [[Ácido tranexâmico]] e os intervalos do [[Relógio do atendimento]]; depois, com laudo, [[ISS]] e [[TRISS]].\n\nVersão 7: aba iMIST-AMBO na ordem do mnemônico e [[Preenchimento assistido]].\n\nArquivos: index.html (o app inteiro), manifest.json, sw.js (cache offline), icon.svg. Ver [[Instalação no iPad]], [[Regras do app]] e [[Limitações do app]].\n"
+ },
+ {
+  "path": "app/Instalação no iPad.md",
+  "label": "Instalação no iPad",
+  "group": "app",
+  "text": "# Instalação no iPad\n\nCaminho confiável: publicar os quatro arquivos num endereço HTTPS (GitHub Pages) e abrir no Safari.\n\n1. Repositório no GitHub com os quatro arquivos na raiz.\n2. Settings → Pages → Source: branch main, pasta /root.\n3. Sai um endereço https://<usuário>.github.io/<repo>/.\n4. No iPad, abrir no Safari (no iOS só o Safari instala).\n5. Compartilhar → Adicionar à Tela de Início.\n6. Abrir pelo ícone uma vez com internet; daí em diante funciona offline.\n\nNão abrir o index.html pelo app Arquivos: o iOS trata cada abertura como origem diferente e os casos podem sumir.\n\nAo publicar versão nova, trocar o número em CACHE no sw.js — senão o iPad continua servindo a versão antiga. Ver [[Ficha de Trauma]] e [[Configuração do iPad]].\n"
+ },
+ {
+  "path": "app/Limitações do app.md",
+  "label": "Limitações do app",
+  "group": "app",
+  "text": "# Limitações do app\n\n- Os dados moram no navegador daquele iPad. Restaurar o aparelho ou limpar os dados do Safari apaga tudo — por isso o backup semanal não é opcional.\n- Não há sincronização entre aparelhos nem login: é captura local, com exportação manual para o [[REDCap]].\n- Não é dispositivo médico nem substitui o prontuário. O registro legal continua sendo o Tasy.\n\nVer [[Exportação de dados]] e [[Regras do app]].\n"
+ },
+ {
+  "path": "app/Preenchimento assistido.md",
+  "label": "Preenchimento assistido",
+  "group": "app",
+  "text": "# Preenchimento assistido\n\nNa aba iMIST-AMBO: colar (ou ditar) a nota no formato do serviço — blocos # ID, # IMISTTT AMBO, # XABCDE — e tocar em \"Preencher campos a partir do texto\".\n\nO parser extrai: identificação, mecanismo com tipo e altura, injúrias, sinais vitais da cena e da admissão, os três T desambiguados (transporte / tempo / tratamento, com CC+PR reconhecidos), AMBO, Glasgow decomposto e FAST.\n\nRegras:\n- funciona offline, por regras de texto\n- preenche só campos vazios e lista tudo para conferência\n- nome e número de AT são removidos automaticamente do texto colado — nenhum identificador fica no aparelho\n- [[XABCDE]] em três estados: NORMAL, alterado ou PENDENTE\n\nValidado com bateria automatizada sobre 4 notas reais do serviço: 118 verificações, 118 corretas. Ver [[iMIST-AMBO]] e [[Regras do app]].\n"
+ },
+ {
+  "path": "app/Regras do app.md",
+  "label": "Regras do app",
+  "group": "app",
+  "text": "# Regras do app\n\n- Nenhum identificador do paciente entra no aparelho. Só o código do estudo (TR-2026-0001, gerado automaticamente). Sem nome, sem prontuário, sem iniciais. A ligação entre código e prontuário fica no caderno de triagem da sala.\n- Horário vazio e horário N/A são coisas diferentes na exportação: vazio é falha de registro, N/A é decisão consciente.\n- O papel continua na sala como plano B. iPad descarregado, emprestado ou travado não pode significar caso perdido.\n\nVer [[Relógio do atendimento]], [[Preenchimento assistido]] e [[Exportação de dados]].\n"
+ },
+ {
+  "path": "app/Relógio do atendimento.md",
+  "label": "Relógio do atendimento",
+  "group": "app",
+  "text": "# Relógio do atendimento\n\nAba Horários: tocar AGORA no instante em que a coisa acontece.\n\nHorários: trauma · porta (chegada) · 1º acesso funcionante · E-FAST · ácido tranexâmico · PTM acionado · 1ª transfusão · TC executada · aviso cirúrgico · entrada no CC · admissão UTI · saída da sala.\n\nN/A marca o que não se aplica — é diferente de deixar vazio. Na exportação, vazio é falha de registro; N/A é decisão consciente.\n\nIntervalos calculados: porta → TC · porta → 1ª transfusão · porta → centro cirúrgico · tempo na sala · trauma → tranexâmico.\n\nO relógio do iPad é o relógio oficial do atendimento: quem anotar no papel de backup copia a hora do iPad, nunca do relógio de parede ou do celular — misturar fontes corrompe todos os intervalos. Ver [[Configuração do iPad]] e [[Ácido tranexâmico]].\n"
+ },
+ {
+  "path": "escores/Glasgow.md",
+  "label": "Glasgow",
+  "group": "escores",
+  "text": "# Glasgow\n\nRegistrado decomposto na aba Admissão: abertura ocular (O, 1–4), resposta verbal (V, 1–5), resposta motora (M, 1–6). O total O + V + M é calculado sozinho.\n\nCores do alerta na ficha: ≤ 8 vermelho · 9–12 âmbar · 13–15 verde.\n\nO [[Preenchimento assistido]] reconhece \"Glasgow (O:V:M)\" na passagem do APH e decompõe os três componentes.\n\nNo [[RTS]] o Glasgow vira código: 13–15 → 4, 9–12 → 3, 6–8 → 2, 4–5 → 1, 3 → 0.\nUse a primeira aferição — ver [[Sinais vitais da admissão]].\n"
+ },
+ {
+  "path": "escores/ISS.md",
+  "label": "ISS",
+  "group": "escores",
+  "text": "# ISS\n\nInjury Severity Score — preenchido depois, com laudo definitivo, na [[Aba Pós]].\n\nAIS de 0 a 6 em seis regiões: cabeça e pescoço · face · tórax · abdome e pelve visceral · extremidades e pelve óssea · externo.\n\nISS = soma dos quadrados dos três maiores AIS.\nQualquer região com AIS 6 (lesão não sobrevivível) força ISS = 75.\nISS ≥ 16 → politrauma grave.\n\nArmadilha: região em branco conta como zero e subestima o escore — o app avisa quando faltam regiões pontuadas.\n\nEntra no [[TRISS]]. Coluna `_iss`.\n"
+ },
+ {
+  "path": "escores/RABT.md",
+  "label": "RABT",
+  "group": "escores",
+  "text": "# RABT\n\nRevised Assessment of Bleeding and Transfusion — o gatilho de transfusão maciça usado na ficha.\n\nQuatro critérios, 1 ponto cada:\n1. Mecanismo penetrante — vem do [[Tipo de trauma]] registrado na aba iMIST-AMBO\n2. FAST positivo — vem do resultado global do [[E-FAST]]\n3. Shock Index > 1,0 — calculado a partir da admissão ([[Shock Index]])\n4. Fratura de pelve, suspeita ou confirmada — o único item marcado à mão, na aba Hemostasia\n\nRABT ≥ 2 → critério atingido, acionar o [[Protocolo de transfusão maciça]].\n\nNão confundir com o ABC score, que usa PAS ≤ 90 e FC ≥ 120 no lugar do Shock Index.\n\nExportado na coluna `_rabt`.\n"
+ },
+ {
+  "path": "escores/RTS.md",
+  "label": "RTS",
+  "group": "escores",
+  "text": "# RTS\n\nRevised Trauma Score, com os valores codificados de Champion. Cada componente vale de 0 a 4.\n\nGlasgow: 13–15 → 4 · 9–12 → 3 · 6–8 → 2 · 4–5 → 1 · 3 → 0\nPA sistólica: > 89 → 4 · 76–89 → 3 · 50–75 → 2 · 1–49 → 1 · 0 → 0\nFrequência respiratória: 10–29 → 4 · > 29 → 3 · 6–9 → 2 · 1–5 → 1 · 0 → 0\n\nDuas formas:\n- T-RTS (triagem) = soma simples, de 0 a 12. RTS ≤ 10 costuma indicar necessidade de centro de trauma.\n- RTS ponderado = 0,9368·GCS + 0,7326·PAS + 0,2908·FR, de 0 a 7,8408. É o que alimenta o [[TRISS]].\n\nVale sempre a PRIMEIRA aferição, antes de qualquer reposição: valor pós-reanimação infla o escore e enviesa o TRISS. Ver [[Sinais vitais da admissão]] e [[Glasgow]].\n\nColunas no CSV: `_rts_t` e `_rts_ponderado`.\n"
+ },
+ {
+  "path": "escores/Shock Index.md",
+  "label": "Shock Index",
+  "group": "escores",
+  "text": "# Shock Index\n\nShock Index = FC ÷ PA sistólica, com os sinais vitais da admissão (primeira aferição, antes do volume — ver [[Sinais vitais da admissão]]).\n\nNa Ficha de Trauma:\n- SI ≥ 1,0 acende alerta vermelho: perfusão comprometida, considerar critérios de transfusão maciça.\n- SI > 1,0 é um dos quatro critérios do [[RABT]] e entra sozinho no cálculo, sem digitar nada.\n- Exportado na coluna `_shock_index`.\n\nAtenção ao limiar: o alerta de tela usa ≥ 1,0; o critério do RABT usa > 1,0. SI exatamente 1,0 acende o alerta mas não pontua no RABT.\n\nVer também [[Protocolo de transfusão maciça]] e [[Glasgow]] (mesma aba Admissão).\n"
+ },
+ {
+  "path": "escores/TRISS.md",
+  "label": "TRISS",
+  "group": "escores",
+  "text": "# TRISS\n\nProbabilidade de sobrevida (Ps) combinando [[RTS]] ponderado, [[ISS]] e idade.\n\nPs = 1 / (1 + e^−b), com b = b0 + b1·RTS + b2·ISS + b3·(índice de idade)\n\nCoeficientes do MTOS (Boyd, 1987):\n- Contuso: b0 −1,2470 · b1 0,9544 · b2 −0,0768 · b3 −1,9052\n- Penetrante: b0 −0,6029 · b1 1,1430 · b2 −0,1516 · b3 −2,6676\n\nÍndice de idade: 0 abaixo de 55 anos, 1 a partir de 55. Menores de 15 anos usam os coeficientes de contuso, por convenção. O mecanismo vem do [[Tipo de trauma]] e pode ser forçado manualmente.\n\nEsses coeficientes são de 1987 e superestimam mortalidade em casuísticas atuais: servem como descritor de gravidade da amostra e para comparar com a literatura — não como prognóstico individual à beira do leito.\n\nColunas `_triss_ps` e `_triss_coef`.\n"
+ },
+ {
+  "path": "protocolo/E-FAST.md",
+  "label": "E-FAST",
+  "group": "protocolo",
+  "text": "# E-FAST\n\nA ficha registra quatro janelas, cada uma como +, − ou NR:\nMorrison · esplenorrenal · pélvica · subxifoide.\n\nRegra: janela que não deu para ver é NR, nunca negativa.\n\nResultado global: negativo, positivo ou não realizado. Se positivo, descrever o achado (\"líquido livre em…\").\n\nFAST positivo pontua no [[RABT]] automaticamente. O horário do exame vai para o [[Relógio do atendimento]]. O pulmão aparece no B do [[XABCDE]] (\"lung slide presente\").\n"
+ },
+ {
+  "path": "protocolo/iMIST-AMBO.md",
+  "label": "iMIST-AMBO",
+  "group": "protocolo",
+  "text": "# iMIST-AMBO\n\nSequência da passagem do APH — a aba da ficha segue a ordem do mnemônico: i · M · I · S · T · T · T · AMBO.\n\n- i — identificação: idade, sexo, peso (estimado, se preciso)\n- M — mecanismo: [[Tipo de trauma]] (contuso ou penetrante), mecanismo (colisão auto, moto, atropelamento, queda com altura, FAF, FAB, agressão) e agravantes (ejeção, óbito no local, encarceramento, sem cinto ou capacete, alta velocidade)\n- I — injúrias identificadas na cena\n- S — sinais vitais da cena (PAS, PAD, FC, FR, SpO₂, GCS)\n- T — transporte: SAMU, Bombeiros, GRAU, próprios meios, outro serviço\n- T — tempo de transporte até a porta\n- T — tratamento do APH: colar cervical, prancha, torniquete, volume, ácido tranexâmico, IOT, hemocomponente\n- A — alergias · M — medicações (anticoagulante ou antiagregante, droga e última dose) · B — background (comorbidades) · O — outros (etilismo ou drogas, recusa de transfusão, gestante, cirurgia neurológica prévia)\n\nOs três T são desambiguados pelo [[Preenchimento assistido]] (transporte / tempo / tratamento, com CC+PR reconhecidos).\n"
+ },
+ {
+  "path": "protocolo/NEXUS.md",
+  "label": "NEXUS",
+  "group": "protocolo",
+  "text": "# NEXUS\n\nColuna cervical — marcar o que ESTÁ presente:\n1. Dor cervical posterior\n2. Déficit neurológico focal\n3. Alteração da consciência\n4. Intoxicação\n5. Lesão distrativa\n\nQualquer critério presente → NEXUS alterado: mantenho o colar e solicito TC de coluna cervical.\nNenhum presente → coluna cervical liberada clinicamente; posso retirar o colar sem imagem.\n\nFica na mesma aba do [[E-FAST]]. O colar costuma chegar do APH — ver o tratamento no [[iMIST-AMBO]].\n"
+ },
+ {
+  "path": "protocolo/Protocolo de transfusão maciça.md",
+  "label": "Protocolo de transfusão maciça",
+  "group": "protocolo",
+  "text": "# Protocolo de transfusão maciça\n\nGatilho na ficha: [[RABT]] ≥ 2 → acionar o PTM. [[Shock Index]] ≥ 1,0 acende alerta para considerar os critérios.\n\nRegistro até a saída da sala:\n- PTM acionado ou não indicado (o horário \"PTM acionado\" vai para o [[Relógio do atendimento]])\n- hemácias, plasma, plaquetas e sangue total, em unidades\n- ciclos de PTM\n- cristaloide total (mL)\n\nIntervalo calculado: porta → 1ª transfusão.\nNa aba Hemostasia também ficam o [[Ácido tranexâmico]] e o cálcio.\n"
+ },
+ {
+  "path": "protocolo/Resposta a volume.md",
+  "label": "Resposta a volume",
+  "group": "protocolo",
+  "text": "# Resposta a volume\n\nRegistrada no fim do [[XABCDE]]: não precisou · respondedor · transitório · não respondedor.\n\nNa mesma tela: cristaloide na sala (mL), BE e lactato.\n\nO volume já infundido pelo APH fica no tratamento do [[iMIST-AMBO]]; o total de cristaloide até a saída, no [[Protocolo de transfusão maciça]].\n"
+ },
+ {
+  "path": "protocolo/Sinais vitais da admissão.md",
+  "label": "Sinais vitais da admissão",
+  "group": "protocolo",
+  "text": "# Sinais vitais da admissão\n\nPrimeira aferição, antes do volume — não é o valor estabilizado.\n\nCampos: PA sistólica e diastólica, FC, FR, SpO₂, temperatura, TEC (s), dextro, e [[Glasgow]] decomposto (O, V, M).\n\nPor que a primeira: valor pós-reanimação infla o [[RTS]] e enviesa o [[TRISS]]. É também a base do [[Shock Index]].\n\nOs sinais vitais da cena ficam separados, no S do [[iMIST-AMBO]].\n"
+ },
+ {
+  "path": "protocolo/Tipo de trauma.md",
+  "label": "Tipo de trauma",
+  "group": "protocolo",
+  "text": "# Tipo de trauma\n\nContuso ou penetrante — campo da aba iMIST-AMBO (M · mecanismo). É fonte única: alimenta sozinho o critério \"penetrante\" do [[RABT]] e a escolha dos coeficientes do [[TRISS]].\n\nPrioridade para decidir se é penetrante:\n1. campo \"Tipo de trauma\"\n2. mecanismo FAF ou FAB\n3. marcação manual\n\nNo TRISS: menores de 15 anos usam coeficientes de contuso, por convenção; dá para forçar o mecanismo manualmente.\n\nEntrou na versão 5 da [[Ficha de Trauma]].\n"
+ },
+ {
+  "path": "protocolo/XABCDE.md",
+  "label": "XABCDE",
+  "group": "protocolo",
+  "text": "# XABCDE\n\nExame primário registrado por exceção: marca NORMAL quando a frase-padrão descreve o paciente e escreve só o que fugiu do padrão.\n\nFrases-padrão de normalidade:\n- X — Sem sangramento ameaçador à vida\n- A — Via aérea pérvia, sem enfisema ou hematoma cervical, sem desvio de traqueia\n- B — MV presente bilateral, expansibilidade simétrica, tórax estável, lung slide presente\n- C — Estável, abdome indolor, pelve estável, TEC menor que 3 s\n- D — Pupilas isocóricas e fotorreagentes, sem déficit focal\n- E — Dorso alinhado e sem lesões, pulsos 4/4, sem fratura exposta\n\nIntervenções por letra: X compressão, torniquete, sutura hemostática · A IOT, cricotireoidostomia, cânula orofaríngea · B dreno à direita ou à esquerda, descompressão por agulha · C cinta pélvica, acesso intraósseo, acesso central · D sinais de hipertensão intracraniana, neurocirurgia acionada · E manta térmica, fluido aquecido.\n\nPela nota colada ([[Preenchimento assistido]]), cada letra cai em três estados: frase-padrão presente → NORMAL; achado descrito → transcrito para \"alterado\"; sem menção → PENDENTE até alguém examinar.\n\nVer também [[E-FAST]] e [[Resposta a volume]].\n"
+ },
+ {
+  "path": "protocolo/Ácido tranexâmico.md",
+  "label": "Ácido tranexâmico",
+  "group": "protocolo",
+  "text": "# Ácido tranexâmico\n\nJanela de 3 h (180 min) contada a partir do horário do trauma no [[Relógio do atendimento]]. Enquanto não há horário de administração, a ficha mostra quantos minutos se passaram e quantos restam; depois de 180 min avisa que a janela foi ultrapassada e pede o motivo.\n\nEsquemas que a ficha registra quando \"Feito\":\n- 1 g em 10 min + 1 g em 8 h\n- 1 g dose única\n- 2 g em bolus único\n- outro\n\n(São as opções de registro da ficha, não uma recomendação de dose.)\n\nMotivos quando \"Não feito\": mais de 3 h do trauma · sem sangramento · contraindicação · outro.\n\nNa mesma seção: cálcio reposto. O intervalo trauma → tranexâmico sai calculado.\nVer [[Protocolo de transfusão maciça]].\n"
+ },
+ {
+  "path": "rotina/Aba Pós.md",
+  "label": "Aba Pós",
+  "group": "rotina",
+  "text": "# Aba Pós\n\nPreenchida depois, com laudo definitivo e desfecho.\n\nTomografia: realizada? Se não — instabilidade ou cirurgia imediata, não indicada, óbito, aparelho indisponível. Se sim — hora da solicitação, protocolo (whole-body ou segmentar), achados principais, lesão de órgão sólido e grau AAST.\n\nCirurgia e desfecho: procedimento, hora da incisão, achado operatório principal; desfecho (alta vivo, óbito em menos de 24 h, óbito intra-hospitalar); dias de UTI, de VM e de internação; complicações (sepse, insuficiência renal, SDRA, reoperação, TEV, infecção de sítio cirúrgico).\n\nAIS das seis regiões para o [[ISS]] — e daí o [[TRISS]].\n\nAuditoria de registro: separar campos vazios por dado inexistente (hora do trauma desconhecida, paciente sem acompanhante…) dos vazios por falta de tempo — não avalia ninguém, identifica o que não cabe na sala.\n"
+ },
+ {
+  "path": "rotina/Rotina do código vermelho.md",
+  "label": "Rotina do código vermelho",
+  "group": "rotina",
+  "text": "# Rotina do código vermelho\n\n1. Código vermelho ativado → abrir o app → \"+ Novo código vermelho\".\n2. Durante o atendimento: tocar AGORA a cada evento no [[Relógio do atendimento]]. Só isso.\n3. Huddle de 60 segundos antes de o paciente sair: completar as demais abas ([[iMIST-AMBO]], [[XABCDE]], hemostasia, [[Saída da sala]]).\n4. Depois, com laudo e desfecho: abrir o caso, preencher a [[Aba Pós]] e tocar em \"Fechar caso\".\n5. Fim do plantão ou uma vez por semana: Casos → Exportar dados → Baixar CSV. Guardar o arquivo e importar no [[REDCap]].\n\nA ativação pode vir do APH, da triagem ou do staff — fica registrada na Identificação, junto com quem preencheu (interno, R1, R2, R3).\n"
+ },
+ {
+  "path": "rotina/Saída da sala.md",
+  "label": "Saída da sala",
+  "group": "rotina",
+  "text": "# Saída da sala\n\nDestino imediato: centro cirúrgico · UTI · enfermaria · observação · alta do PS · transferência · óbito na sala.\n\nConduta: tratamento conservador ou cirurgia. Se cirurgia: laparotomia, damage control, toracotomia, toracostomia isolada, fixador externo, angioembolização, craniotomia, outro.\n\nHipótese diagnóstica no formato evento-âncora + eixos de lesão:\nColisão motociclística em alta velocidade\n> Choque hemorrágico grau III\n> Trauma abdominal fechado com hemoperitônio\n\nHorários de aviso cirúrgico, entrada no CC e saída da sala vão para o [[Relógio do atendimento]]. Depois, completar a [[Aba Pós]].\n"
+ }
+]

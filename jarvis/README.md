@@ -11,6 +11,28 @@ Os 6 prompts do *Build Your Own JARVIS* (Zubair Trabzada · AI Workshop), execut
 
 Python 3 só com biblioteca padrão (roda no `python3` que vem no Mac) e uma biblioteca 3D via CDN. Sem npm, sem build.
 
+## Sem instalar nada: o JARVIS no claude.ai
+
+Abra **https://claude.ai/artifact/NZgepmtL7XyJcrDvLafMvn** no iPad, no iPhone ou no Mac, logado na sua conta, e toque em **Ativar JARVIS**. Não precisa de Terminal, Mac ligado nem chave de API. O cérebro é o Claude da sua própria conta.
+
+Na primeira vez, o claude.ai pede três permissões: usar o Claude, ler o Google Agenda e consultar o PubMed. Cada uma só é pedida quando o recurso é usado.
+
+| Diga ou digite | O que acontece |
+|---|---|
+| uma pergunta sobre as notas | Responde só com base nas notas, fala a resposta e voa até a nota-fonte. |
+| "o que tenho hoje?" | Briefing do dia a partir do Google Agenda, incluindo os eventos 📚 R+ UNIFESP e 🔬 Update CG. |
+| "me faz a questão de hoje" | Usa o resumo do dia que está na agenda. |
+| "pesquisa no PubMed …" | Busca artigos e responde citando o PubMed, com os links dos DOIs. |
+| "lembre que …" | Guarda a memória na sua conta, e ela nasce como uma estrela nova. |
+| "o que eu fiz ontem?" | Resume o diário daquele dia. |
+| "modo rápido / normal / máximo" | Troca a força do modelo. |
+| "humor em 30" | Ajusta o humor do mordomo. |
+| "para" | Ele se cala. |
+
+O microfone da página é bloqueado pelo claude.ai. Para falar, use o ditado do teclado: o 🎤 do teclado do iPad ou do iPhone, ou a tecla de ditado do Mac. O botão 🎙 do JARVIS mostra como. Para usar as suas notas, abra o menu ⋯ e toque em "Adicionar notas": arquivos `.md` ou `.txt` ficam guardados na sua conta. Não importe dados de pacientes.
+
+O código-fonte, a especificação e os testes do app ficam em `claude-app/`. O `jarvis.html` é montado com `python3 claude-app/src/assemble.py`. A bateria de testes roda com `sh claude-app/test/run-all.sh`: 182 testes unitários e 24 cenários no Chromium, com o claude.ai simulado.
+
 ## Instalar com um comando (Mac)
 
 Cole no Terminal (Cmd+Espaço, "Terminal"):
