@@ -31,7 +31,12 @@ done
 MAC=0; [ "$(uname)" = "Darwin" ] && MAC=1
 
 say() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
-die() { printf '\n\033[1;31m✗ %s\033[0m\n' "$*"; exit 1; }
+die() { printf '\n\033[1;31m✗ %s\033[0m\n' "$*"; echo "Me mande uma foto desta tela."; exit 1; }
+
+echo "JARVIS · instalador"
+if [ $MAC = 1 ] && ! command -v launchctl >/dev/null 2>&1; then   # a-Shell e afins no iPad
+  die "Isto roda no Mac, não no iPad. No iPad você só abre o endereço do Tailscale no Safari."
+fi
 
 say "Conferindo o Python"
 if ! python3 -c 'import sys; assert sys.version_info >= (3, 7)' 2>/dev/null; then
@@ -128,10 +133,23 @@ elif ipad == "0":
 cfg["port"] = port
 build.save_config(cfg)
 print("iPad pelo Tailscale:", "ligado" if cfg.get("tailscale") else "desligado (rode de novo com --ipad depois de instalar o Tailscale)")
-print("Cérebro:", "API key colada" if cfg.get("api_key") not in (None, "", build.PLACEHOLDER_KEY) else "sem API key — usa o Claude Code se ele estiver instalado")
+if cfg.get("api_key") not in (None, "", build.PLACEHOLDER_KEY):
+    print("Cérebro: API key colada")
+elif shutil.which("claude") or any(os.path.exists(os.path.expanduser(p)) for p in build.CLAUDE_PLACES):
+    print("Cérebro: Claude Code (claude -p)")
+else:
+    print("Cérebro: NENHUM ainda. Instale o Claude Code com  curl -fsSL https://claude.ai/install.sh | bash  e rode `claude` para entrar; ou cole a API key em config.json.")
 EOF
 
 PY="$(command -v python3)"
+EXTRA_PATH=""
+for tool in claude node; do   # onde o Terminal acha `claude` e `node` (nvm, Volta…): o launchd não herda esse PATH
+  d="$(dirname "$(command -v "$tool" 2>/dev/null || echo /x/x)")"
+  case ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin:$HOME/.claude/local$EXTRA_PATH:" in
+    *":$d:"*|*":/x:"*) ;;
+    *) EXTRA_PATH="$EXTRA_PATH:$d" ;;
+  esac
+done
 if [ $AUTOSTART = 1 ] && [ $MAC = 1 ]; then
   say "Deixando o JARVIS ligar sozinho junto com o Mac"
   mkdir -p "$HOME/Library/LaunchAgents"
@@ -147,7 +165,7 @@ if [ $AUTOSTART = 1 ] && [ $MAC = 1 ]; then
   <key>StandardOutPath</key><string>$DEST/jarvis.log</string>
   <key>StandardErrorPath</key><string>$DEST/jarvis.log</string>
   <key>EnvironmentVariables</key><dict>
-    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin:$HOME/.claude/local</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin:$HOME/.claude/local$EXTRA_PATH</string>
     <key>HOME</key><string>$HOME</string>
     <key>PYTHONIOENCODING</key><string>utf-8</string>
     <key>LC_ALL</key><string>en_US.UTF-8</string>

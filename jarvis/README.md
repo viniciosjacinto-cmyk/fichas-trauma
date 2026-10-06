@@ -21,6 +21,10 @@ curl -fsSL https://raw.githubusercontent.com/viniciosjacinto-cmyk/fichas-trauma/
 
 Ele baixa o JARVIS para `~/JARVIS`, deixa o servidor ligando sozinho junto com o Mac, espera subir e abre o Chrome. Rodar de novo atualiza sem perder `config.json`, memórias e diário. Para o iPad, acrescente `-s -- --ipad` no fim (depois de instalar o Tailscale). Outras opções, no fim do comando do mesmo jeito: `--sem-inicio-automatico` (não liga junto com o Mac) e `bash ~/JARVIS/instalar.sh --desinstalar` (desliga e tira do início automático; a pasta fica). O registro fica em `~/JARVIS/jarvis.log`. Depois do merge na `main`, troque `claude/new-session-p67tuw` por `main` no endereço.
 
+Prefere não mexer no Terminal? Se o Claude Code estiver no Mac (app Claude Desktop, aba Code, ou `claude` no Terminal), cole nele esta frase e ele instala, conserta o que der erro e configura o iPad, seguindo `MAC.md`:
+
+> Leia https://raw.githubusercontent.com/viniciosjacinto-cmyk/fichas-trauma/claude/new-session-p67tuw/jarvis/MAC.md e siga o roteiro: instale o JARVIS, conserte o que der erro e me avise quando ele estiver falando.
+
 ## Rodar na mão
 
 ```bash
@@ -185,6 +189,7 @@ São 32 testes, só biblioteca padrão; passam no Python 3.9 do Mac e no 3.11. U
 ```
 jarvis/
 ├── instalar.sh       instala ou atualiza no Mac com um comando (launchd, Tailscale)
+├── MAC.md            roteiro para um Claude Code rodando no Mac instalar e consertar
 ├── build.py          notas -> viewer/graph-data.js
 ├── server.py         servidor local: viewer/, /chat, /remember, /api/status
 ├── viewer/index.html galáxia, voz, painel, barra de pergunta
