@@ -469,6 +469,54 @@ def retryable(e):
     return e.status == 0 and "timed out" not in m and any(t in m for t in TRANSIENT)
 
 
+def host_allowed(host, cfg):
+    """Quem pode falar com o servidor: o próprio computador; e, se configurado, o nome HTTPS
+    deste Mac na rede Tailscale (*.ts.net) ou nomes listados em allowed_hosts."""
+    host = (host or "").lower().rstrip(".")
+    if host in LOOPBACK or host == "::1":
+        return True
+    extra = {str(h).lower().rstrip(".").split(":")[0] for h in (cfg.get("allowed_hosts") or []) if h}
+    if host in extra:
+        return True
+    return bool(cfg.get("tailscale")) and host.endswith(".ts.net")
+
+
+TAILSCALE_BINS = ("tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+
+
+def tailscale_bin():
+    for b in TAILSCALE_BINS:
+        p = shutil.which(b) if "/" not in b else (b if os.access(b, os.X_OK) else None)
+        if p:
+            return p
+    return None
+
+
+def tailscale_url(port):
+    """(url, erro): nome HTTPS deste computador na rede Tailscale; liga o `tailscale serve` se preciso.
+    O serve só alcança aparelhos da SUA conta Tailscale — não é internet aberta (isso seria o Funnel)."""
+    exe = tailscale_bin()
+    if not exe:
+        return None, "Tailscale não encontrado. Instale o app (App Store ou tailscale.com/download) e abra uma vez."
+    try:
+        out = subprocess.run([exe, "status", "--json"], capture_output=True, text=True, timeout=8).stdout
+        self_ = (json.loads(out or "{}").get("Self") or {})
+        dns = str(self_.get("DNSName") or "").rstrip(".")
+        if not dns or not self_.get("Online", True):
+            return None, "Tailscale instalado, mas não conectado: abra o app e faça login."
+        cur = subprocess.run([exe, "serve", "status"], capture_output=True, text=True, timeout=8)
+        if f":{port}" not in (cur.stdout or ""):
+            r = subprocess.run([exe, "serve", "--bg", str(port)], capture_output=True, text=True, timeout=30)
+            if r.returncode != 0:
+                detail = (r.stderr or r.stdout).strip()[:300]
+                hint = (" Ative 'HTTPS Certificates' e 'MagicDNS' em login.tailscale.com/admin/dns."
+                        if "https" in detail.lower() or "cert" in detail.lower() else "")
+                return None, f"`tailscale serve` falhou: {detail}.{hint}"
+        return f"https://{dns}", None
+    except (OSError, subprocess.TimeoutExpired, ValueError) as e:
+        return None, f"Tailscale: {e}"
+
+
 def eleven_ready(cfg):
     key, voice = cfg.get("elevenlabs_api_key"), cfg.get("elevenlabs_voice_id")
     return bool(key and voice and str(key).strip() and "PUT-" not in str(key))
@@ -631,7 +679,8 @@ class Brain:
             return {"notes": len(self.notes), "links": len(self.links), "language": code,
                     "brain": backend or "none", "model": model, "humor": humor_of(cfg),
                     "tts": "elevenlabs" if eleven_ready(cfg) else "browser",
-                    "briefing": self.briefing(cfg), "build_id": self.build_id}
+                    "briefing": self.briefing(cfg), "remote_url": getattr(self, "remote_url", None),
+                    "build_id": self.build_id}
 
     # ---- diário local (máquina do tempo)
     def log_event(self, kind, **fields):
@@ -942,6 +991,12 @@ class Brain:
         except ValueError as e:
             raise BrainError(str(e), 500)
 
+    def safe_config(self):
+        try:
+            return build.load_config()
+        except ValueError:
+            return dict(build.DEFAULT_CONFIG)
+
     def backend(self, cfg):
         backend = pick_backend(cfg)
         if backend is None:
@@ -1104,14 +1159,19 @@ class Handler(SimpleHTTPRequestHandler):
     # proteção contra outra aba/site mandando POST para o localhost (e contra DNS rebinding)
     def host_ok(self):
         host = (self.headers.get("Host") or "").rsplit(":", 1)[0].lower()
-        return host in LOOPBACK
+        return host_allowed(host, self.server.brain.safe_config())
 
     def origin_ok(self):
         origin = self.headers.get("Origin")
         if not origin:
             return True
-        port = self.server.server_address[1]
-        return origin in {f"http://{h}:{port}" for h in LOOPBACK}
+        u = urllib.parse.urlsplit(origin)
+        if u.scheme not in ("http", "https") or not u.hostname:
+            return False
+        host = u.hostname.lower()
+        if host in LOOPBACK or host == "::1":   # a própria página, no próprio computador
+            return u.scheme == "http" and u.port == self.server.server_address[1]
+        return host_allowed(host, self.server.brain.safe_config())  # iPad pelo Tailscale (HTTPS)
 
     def send_json(self, status, payload):
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -1234,6 +1294,10 @@ def main():
     print(f"JARVIS online · {len(brain.notes)} notas · {len(brain.links)} ligações · {notes_dir}")
     print(f"Cérebro: {mind}")
     print(f"Abra no Chrome: http://localhost:{port}")
+    if cfg.get("tailscale"):
+        url, err = tailscale_url(port)
+        brain.remote_url = url
+        print(f"No iPad/iPhone (Safari, com o Tailscale ligado): {url}" if url else f"Tailscale: {err}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

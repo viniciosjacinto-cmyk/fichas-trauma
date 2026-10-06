@@ -20,7 +20,7 @@ python3 server.py
 
 Abra **http://localhost:4700 no Chrome** e clique uma vez na página para ligar a voz.
 
-Abre só no próprio computador. iPad e iPhone na mesma rede não acessam: o servidor só aceita `localhost`, e o microfone do navegador só funciona em `localhost` ou HTTPS.
+Por padrão abre só no próprio computador: o servidor só aceita `localhost`. Para usar no iPad ou iPhone, veja "No iPad ou iPhone, pelo Tailscale" mais abaixo.
 
 Na primeira vez o servidor cria `config.json` e indexa as notas de exemplo de `notes/`: 26 notas tiradas do próprio app Ficha de Trauma (escores, protocolo, app, rotina).
 
@@ -86,6 +86,19 @@ Tudo o que o autor do pack mostrou no vídeo e deixou de fora dos 6 prompts, men
 
 A linha pequena sob o nome mostra o modelo, o humor e se as mãos livres estão ligadas.
 
+### No iPad ou iPhone, pelo Tailscale
+
+O servidor continua no Mac; o iPad só abre a tela. Para o microfone funcionar no iPad o endereço precisa ser HTTPS, e o Tailscale (grátis para uso pessoal) resolve isso sem abrir nada para a internet: só aparelhos logados na **sua** conta alcançam o endereço.
+
+1. Instale o Tailscale no Mac (App Store ou tailscale.com/download) e no iPad (App Store). Entre com a mesma conta nos dois e deixe ligado.
+2. Uma vez só, em **login.tailscale.com/admin/dns**: ative **MagicDNS** e **HTTPS Certificates**.
+3. No `config.json` do JARVIS acrescente a linha `"tailscale": true` e rode `python3 server.py`. O Terminal mostra algo como `No iPad/iPhone: https://meu-mac.tail1a2b.ts.net`. O JARVIS liga o `tailscale serve` sozinho; se não conseguir, diz o motivo.
+4. No iPad, com o Tailscale ligado, abra esse endereço no **Safari**. Toque uma vez na tela e permita o microfone.
+
+Vale fora de casa também (4G), desde que o Mac esteja ligado, online e com o `server.py` rodando. Não use o "Funnel" do Tailscale: ele abriria o JARVIS para a internet inteira. O 👂 (mãos livres) no Safari do iPad pode parar de ouvir sozinho mais cedo; o botão 🎙 funciona normalmente.
+
+Sem Tailscale, dá para liberar outros nomes com `"allowed_hosts": ["meu-mac.local"]`, mas aí o endereço é `http://` e o microfone fica bloqueado no iPad.
+
 ### Precisam de conta: deixei preparado, você decide
 
 **Voz clonada (ElevenLabs).** Em `config.json`, acrescente `elevenlabs_api_key` e `elevenlabs_voice_id` (o ID de uma voz da sua conta). O servidor passa a gerar o áudio e o navegador só toca: a chave não sai do servidor. Sem isso, vale a voz do sistema. *Não testei com uma chave real*, só contra um simulador: se o ElevenLabs mudar a API, o JARVIS cai de volta para a voz do sistema e avisa no console do navegador.
@@ -110,11 +123,13 @@ A linha pequena sob o nome mostra o modelo, o humor e se as mãos livres estão 
 | `humor` | `70` | Dial de personalidade, 0–100. Também por voz: "humor em 30". |
 | `elevenlabs_api_key`, `elevenlabs_voice_id` | — | Voz clonada. Opcional: `elevenlabs_model` (padrão `eleven_multilingual_v2`). |
 | `briefing_command` | — | Comando local cuja saída vira o briefing falado ao abrir (ex.: `icalBuddy … eventsToday`). |
+| `tailscale` | `false` | `true` aceita o nome `*.ts.net` deste Mac e liga o `tailscale serve` sozinho: JARVIS no iPad, com microfone. |
+| `allowed_hosts` | — | Outros nomes aceitos no endereço (ex.: `["meu-mac.local"]`). Sem HTTPS, o iPad não libera o microfone. |
 
 ## Segurança e privacidade
 
 - A chave fica só no servidor. Não aparece no navegador, no HTML nem em nenhum arquivo servido. O servidor entrega **apenas** a pasta `viewer/`.
-- O servidor escuta só em `127.0.0.1` e recusa pedidos vindos de outros sites (checa `Host`, `Origin` e `Sec-Fetch-Site`). Outra página aberta no navegador não consegue embutir `graph-data.js` para ler os trechos das notas (`Cross-Origin-Resource-Policy: same-origin`).
+- O servidor escuta só em `127.0.0.1` e recusa pedidos vindos de outros sites (checa `Host`, `Origin` e `Sec-Fetch-Site`). Com `"tailscale": true`, aceita também o nome `*.ts.net` do Mac, que só os aparelhos da sua conta Tailscale alcançam. Outra página aberta no navegador não consegue embutir `graph-data.js` para ler os trechos das notas (`Cross-Origin-Resource-Policy: same-origin`).
 - `config.json`, `viewer/graph-data.js`, `notes/captures/` e `history.jsonl` estão no `.gitignore`. A chave, as suas notas e o diário não vão parar no GitHub por engano.
 - Em mãos livres, o Chrome manda o áudio do microfone para o reconhecimento de voz do Google o tempo todo (é assim que o `webkitSpeechRecognition` funciona). Desligue o 👂 na sala de trauma.
 - **A cada pergunta, as 6 notas mais relevantes são enviadas à API da Anthropic** (ou ao Claude Code). Não indexe notas com identificação de paciente.

@@ -322,6 +322,32 @@ class TestServerAPI(unittest.TestCase):
         self.assertEqual(len(self.api.requests), 1)   # sem retentativa para a frase decorativa
         self.assertTrue((self.j.dir / "notes" / body["path"]).exists())
 
+    def test_tailscale_and_allowed_hosts(self):
+        ts = {"Host": "meu-mac.tail1234.ts.net"}
+        self.assertEqual(self.j.get("/", ts)[0], 403)                      # desligado por padrão
+        cfg = json.loads((self.j.dir / "config.json").read_text(encoding="utf-8"))
+        cfg["tailscale"] = True
+        cfg["allowed_hosts"] = ["meu-mac.local"]
+        (self.j.dir / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+        try:
+            self.assertEqual(self.j.get("/", ts)[0], 200)
+            self.assertEqual(self.j.get("/graph-data.js", ts)[0], 200)
+            self.assertEqual(self.j.get("/api/status", ts)[0], 200)
+            self.assertEqual(self.j.get("/", {"Host": "meu-mac.local:4700"})[0], 200)
+            status, body = self.j.post("/chat", {"question": "critérios do RABT", "session": "ts1"},
+                                       dict(ts, Origin="https://meu-mac.tail1234.ts.net"))
+            self.assertEqual(status, 200, body)
+            # o que continua barrado: outros nomes, e um .ts.net disfarçado em outro domínio
+            self.assertEqual(self.j.get("/", {"Host": "evil.example"})[0], 403)
+            self.assertEqual(self.j.get("/", {"Host": "x.ts.net.evil.example"})[0], 403)
+            status, _ = self.j.post("/chat", {"question": "oi"}, dict(ts, Origin="https://evil.example"))
+            self.assertEqual(status, 403)
+            status, _ = self.j.post("/chat", {"question": "oi"}, {"Origin": f"https://localhost:{self.j.port}"})
+            self.assertEqual(status, 403)                                  # localhost só em http na porta certa
+        finally:
+            cfg.pop("tailscale"); cfg.pop("allowed_hosts")
+            (self.j.dir / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+
     def test_remember_reports_removed_links(self):
         before = self.j.graph()
         status, body = self.j.post("/remember", {"text": "lembre que REDCap"})   # alvo antes sem nota própria
@@ -631,6 +657,57 @@ class TestExtras(unittest.TestCase):
             httpd.server_close()
             cfg.pop("elevenlabs_api_key"); cfg.pop("elevenlabs_voice_id"); cfg.pop("elevenlabs_url")
             (self.j.dir / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+
+
+FAKE_TAILSCALE = r'''#!{python}
+import json, sys
+args = sys.argv[1:]
+open({log!r}, "a").write(json.dumps(args) + "\n")
+mode = open({mode!r}).read().strip()
+if args[:2] == ["status", "--json"]:
+    if mode == "offline":
+        print(json.dumps({{"Self": {{"DNSName": "", "Online": False}}}}))
+    else:
+        print(json.dumps({{"Self": {{"DNSName": "meu-mac.tail1a2b.ts.net.", "Online": True}}}}))
+elif args[:2] == ["serve", "status"]:
+    print("https://meu-mac.tail1a2b.ts.net (tailnet only)\n|-- / proxy http://127.0.0.1:4700" if mode == "served" else "No serve config")
+elif args[:2] == ["serve", "--bg"]:
+    if mode == "nocert":
+        sys.stderr.write("error: HTTPS certs are not enabled for this tailnet\n"); sys.exit(1)
+    print("Available within your tailnet:\nhttps://meu-mac.tail1a2b.ts.net/\n|-- proxy http://127.0.0.1:" + args[2])
+'''
+
+
+class TestTailscaleHelper(unittest.TestCase):
+    def test_tailscale_url(self):
+        sys.path.insert(0, str(ROOT))
+        import server
+        tmp = Path(tempfile.mkdtemp(prefix="fake-tailscale-"))
+        log, mode, exe = tmp / "args.log", tmp / "mode", tmp / "tailscale"
+        exe.write_text(FAKE_TAILSCALE.format(python=sys.executable, log=str(log), mode=str(mode)), encoding="utf-8")
+        exe.chmod(0o755)
+        old = server.TAILSCALE_BINS
+        server.TAILSCALE_BINS = (str(exe),)
+        try:
+            mode.write_text("served")                      # já configurado: não roda serve de novo
+            self.assertEqual(server.tailscale_url(4700), ("https://meu-mac.tail1a2b.ts.net", None))
+            self.assertNotIn(["serve", "--bg", "4700"], [json.loads(l) for l in log.read_text().splitlines()])
+            mode.write_text("fresh")                       # primeira vez: liga o serve na porta certa
+            self.assertEqual(server.tailscale_url(4711)[0], "https://meu-mac.tail1a2b.ts.net")
+            self.assertIn(["serve", "--bg", "4711"], [json.loads(l) for l in log.read_text().splitlines()])
+            mode.write_text("nocert")
+            url, err = server.tailscale_url(4700)
+            self.assertIsNone(url)
+            self.assertIn("HTTPS Certificates", err)
+            mode.write_text("offline")
+            url, err = server.tailscale_url(4700)
+            self.assertIsNone(url)
+            self.assertIn("faça login", err)
+            server.TAILSCALE_BINS = ("tailscale-que-nao-existe",)
+            self.assertIn("Instale o app", server.tailscale_url(4700)[1])
+        finally:
+            server.TAILSCALE_BINS = old
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class TestLiveRebuild(unittest.TestCase):

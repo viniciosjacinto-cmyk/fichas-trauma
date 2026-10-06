@@ -128,10 +128,10 @@
     body.panel-open #panel { max-height: calc(100vh - 32px); }
     body.panel-open #dock { left: calc((100vw - 412px) / 2); width: min(760px, calc(100vw - 460px)); }
   }
+  @media (max-width: 900px) { #legend { display: none; } }   /* iPad em pé: a legenda bateria na barra */
   @media (max-width: 720px) {
     #panel { top: 64px; max-height: 40vh; }
     #answer { max-height: 24vh; overflow: auto; }
-    #legend { display: none; }
     #answer .a { font-size: 15px; }
   }
 </style>
@@ -1036,9 +1036,13 @@ function applyLanguage(code) {
   $("close").setAttribute("aria-label", T.close);
 }
 
+let REMOTE_URL = null;
 function renderMode() {
-  $("mode").textContent = [MODEL ? MODEL.replace(/^claude-/, "") : null, HUMOR == null ? null : `humor ${HUMOR}%`,
-    handsFree ? T.wake.toLowerCase() : null].filter(Boolean).join(" · ");
+  const parts = [MODEL ? MODEL.replace(/^claude-/, "") : null, HUMOR == null ? null : `humor ${HUMOR}%`,
+    handsFree ? T.wake.toLowerCase() : null];
+  // aberto no próprio Mac e com Tailscale ligado: mostra o endereço que o iPad usa
+  if (REMOTE_URL && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) parts.push(`iPad: ${REMOTE_URL.replace(/^https?:\/\//, "")}`);
+  $("mode").textContent = parts.filter(Boolean).join(" · ");
 }
 
 // saída do briefing_command (ex.: agenda do dia) em frases faláveis
@@ -1057,6 +1061,7 @@ function cleanBriefing(text) {
   if (!status) { setStatus(T.noServer, true); return; }
   TTS = status.tts === "elevenlabs" ? "elevenlabs" : "browser";
   MODEL = status.model || null;
+  REMOTE_URL = status.remote_url || null;
   HUMOR = typeof status.humor === "number" ? status.humor : null;
   try { wantHandsFree = localStorage.getItem("jarvis.handsFree") === "1"; } catch { /* modo privado */ }
   renderMode();
