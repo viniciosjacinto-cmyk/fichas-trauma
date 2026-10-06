@@ -10,7 +10,7 @@
 # Opções:  --ipad   --sem-ipad   --sem-inicio-automatico   --desinstalar
 # Variáveis: JARVIS_DIR (padrão ~/JARVIS) · JARVIS_BRANCH (padrão claude/new-session-p67tuw)
 
-set -euo pipefail
+set -eo pipefail   # o -u entra depois de ler os argumentos: no bash 3.2 do Mac, "$@" vazio com -u pode dar "unbound variable"
 
 REPO="viniciosjacinto-cmyk/fichas-trauma"
 BRANCH="${JARVIS_BRANCH:-claude/new-session-p67tuw}"
@@ -18,7 +18,7 @@ DEST="${JARVIS_DIR:-$HOME/JARVIS}"
 LABEL="com.jarvis.server"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 IPAD="auto"; AUTOSTART=1; UNINSTALL=0
-for arg in "$@"; do
+for arg in ${1+"$@"}; do
   case "$arg" in
     --ipad) IPAD=1 ;;
     --sem-ipad) IPAD=0 ;;
@@ -27,6 +27,7 @@ for arg in "$@"; do
     *) echo "Opção desconhecida: $arg"; exit 2 ;;
   esac
 done
+set -u
 [ "${JARVIS_NO_LAUNCHD:-0}" = "1" ] && AUTOSTART=0   # testes fora do Mac
 MAC=0; [ "$(uname)" = "Darwin" ] && MAC=1
 
