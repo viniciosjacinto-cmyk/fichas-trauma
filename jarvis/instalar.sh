@@ -33,6 +33,15 @@ MAC=0; [ "$(uname)" = "Darwin" ] && MAC=1
 say() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 die() { printf '\n\033[1;31m✗ %s\033[0m\n' "$*"; exit 1; }
 
+say "Conferindo o Python"
+if ! python3 -c 'import sys; assert sys.version_info >= (3, 7)' 2>/dev/null; then
+  if [ $MAC = 1 ]; then
+    xcode-select --install 2>/dev/null || true
+    die "O Mac vai pedir para instalar as 'ferramentas de linha de comando'. Clique em Instalar, espere terminar e rode este comando de novo."
+  fi
+  die "Preciso do Python 3.7 ou mais novo."
+fi
+
 config_port() {   # porta gravada no config.json (4700 se não houver)
   python3 -c 'import json, sys
 try: print(int(json.load(open(sys.argv[1], encoding="utf-8-sig")).get("port") or 4700))
@@ -68,27 +77,26 @@ if [ $UNINSTALL = 1 ]; then
   exit 0
 fi
 
-say "Conferindo o Python"
-if ! python3 -c 'import sys; assert sys.version_info >= (3, 7)' 2>/dev/null; then
-  if [ $MAC = 1 ]; then
-    xcode-select --install 2>/dev/null || true
-    die "O Mac vai pedir para instalar as 'ferramentas de linha de comando'. Clique em Instalar, espere terminar e rode este comando de novo."
-  fi
-  die "Preciso do Python 3.7 ou mais novo."
-fi
-
 say "Baixando o JARVIS ($BRANCH)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-curl -fsSL -o "$TMP/jarvis.zip" "https://github.com/$REPO/archive/refs/heads/$BRANCH.zip" \
-  || die "Não consegui baixar de github.com. Está com internet?"
+download() { curl -fsL -o "$TMP/jarvis.zip" "https://github.com/$REPO/archive/refs/heads/$1.zip" 2>/dev/null; }
+if ! download "$BRANCH"; then
+  if [ "$BRANCH" != "main" ] && download main; then   # branch apagado depois do merge
+    echo "O branch $BRANCH não existe mais; usando a main."; BRANCH=main
+  else
+    die "Não consegui baixar de github.com. Está com internet?"
+  fi
+fi
 python3 - "$TMP" <<'EOF'
 import sys, zipfile, pathlib
 tmp = pathlib.Path(sys.argv[1])
 with zipfile.ZipFile(tmp / "jarvis.zip") as z:
     z.extractall(tmp)
-src = next(p for p in tmp.iterdir() if p.is_dir() and (p / "jarvis" / "server.py").exists()) / "jarvis"
-(tmp / "SRC").write_text(str(src))
+src = [p / "jarvis" for p in tmp.iterdir() if p.is_dir() and (p / "jarvis" / "server.py").exists()]
+if not src:
+    sys.exit("✗ O ZIP baixado não tem a pasta jarvis/ (branch errado?). Rode com JARVIS_BRANCH=<branch>.")
+(tmp / "SRC").write_text(str(src[0]))
 EOF
 SRC="$(cat "$TMP/SRC")"
 

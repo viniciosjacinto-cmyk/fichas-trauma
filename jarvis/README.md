@@ -19,7 +19,7 @@ Cole no Terminal (Cmd+Espaço, "Terminal"):
 curl -fsSL https://raw.githubusercontent.com/viniciosjacinto-cmyk/fichas-trauma/claude/new-session-p67tuw/jarvis/instalar.sh | bash
 ```
 
-Ele baixa o JARVIS para `~/JARVIS`, deixa o servidor ligando sozinho junto com o Mac, espera subir e abre o Chrome. Rodar de novo atualiza sem perder `config.json`, memórias e diário. Para o iPad, acrescente `-s -- --ipad` no fim (depois de instalar o Tailscale). Outras opções, no fim do comando do mesmo jeito: `--sem-inicio-automatico` (não liga junto com o Mac) e `bash ~/JARVIS/instalar.sh --desinstalar` (desliga e tira do início automático; a pasta fica). O registro fica em `~/JARVIS/jarvis.log`.
+Ele baixa o JARVIS para `~/JARVIS`, deixa o servidor ligando sozinho junto com o Mac, espera subir e abre o Chrome. Rodar de novo atualiza sem perder `config.json`, memórias e diário. Para o iPad, acrescente `-s -- --ipad` no fim (depois de instalar o Tailscale). Outras opções, no fim do comando do mesmo jeito: `--sem-inicio-automatico` (não liga junto com o Mac) e `bash ~/JARVIS/instalar.sh --desinstalar` (desliga e tira do início automático; a pasta fica). O registro fica em `~/JARVIS/jarvis.log`. Depois do merge na `main`, troque `claude/new-session-p67tuw` por `main` no endereço.
 
 ## Rodar na mão
 
