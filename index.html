@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  Ficha de Padronização Assistencial de Atendimento ao Politraumatizado
+  PS Cirurgia Geral · Hospital São Paulo · Escola Paulista de Medicina – UNIFESP
+  © Outubro de 2026 — Lucas Domingos Ribeiro e Marcos Vinícius Veanholi
+  Orientação: Prof. Dr. Diego Adão
+-->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -6,10 +12,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ficha Trauma">
-<meta name="theme-color" content="#12253d">
+<meta name="theme-color" content="#0c141f">
 <link rel="manifest" href="manifest.json">
 
-<title>Ficha de Trauma — PS CG HSP</title>
+<title>Ficha de Padronização Assistencial — Politraumatizado · EPM-UNIFESP</title>
+<meta name="author" content="Lucas Domingos Ribeiro; Marcos Vinícius Veanholi — orientação: Prof. Dr. Diego Adão">
 <style>
   :root{
     --navy:#12253d; --red:#c62828; --green:#2e7d32; --amber:#b26a00;
@@ -67,6 +74,22 @@
        font-size:15px; color:var(--ink); min-height:44px; display:flex; align-items:center}
   .opt.on{background:var(--navy); border-color:var(--navy); color:#fff; font-weight:600}
   .opt.on.warn{background:var(--red); border-color:var(--red)}
+  .gcs{display:flex; flex-direction:column; gap:5px}
+  .gcs .opt{display:flex; align-items:center; gap:10px; text-align:left; width:100%; padding:9px 10px}
+  .gcs .opt b{flex:0 0 26px; height:26px; border-radius:6px; background:#e7e9ed; color:var(--navy);
+       display:flex; align-items:center; justify-content:center; font-size:15px}
+  .gcs .opt.on b{background:#fff}
+  .gcs .opt small{display:block; font-size:12px; opacity:.75; font-weight:400}
+  .gcsg{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:780px){.gcsg{grid-template-columns:1fr}}
+  .fwin{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 10px; margin:6px 0;
+        border:1.5px solid var(--line); border-radius:10px; background:#fff}
+  .fwin .fwl{flex:1 1 140px; font-weight:700; color:var(--navy)}
+  .fwin .fwl small{display:block; font-weight:400; font-size:12px; color:var(--mut)}
+  .fwin .opts{flex:2 1 220px}
+  .fwin .opts .opt{flex:1; justify-content:center; text-align:center}
+  .fwin.pos{border-color:var(--red); background:#fdeaea}
+  .fwin.pos .fwl{color:var(--red)}
   .opt.on.good{background:var(--green); border-color:var(--green)}
 
   /* ---------- normal/alterado ---------- */
@@ -78,6 +101,15 @@
   .btn-norm{border:1.5px solid var(--green); color:var(--green); background:#fff;
             border-radius:9px; padding:10px 14px; font-weight:700; min-height:44px; white-space:nowrap}
   .btn-norm.on{background:var(--green); color:#fff}
+  .btn-alt{border:1.5px solid var(--red); color:var(--red); background:#fff;
+           border-radius:9px; padding:10px 14px; font-weight:700; min-height:44px; white-space:nowrap}
+  .btn-alt.on{background:var(--red); color:#fff}
+  .xbtns{display:flex; gap:8px; flex:none}
+  .xhead{flex-wrap:wrap}
+  @media(max-width:780px){ .xbtns{flex:1 1 100%} .xbtns button{flex:1} }
+  .xrow.alt{border-color:var(--red); background:#fffafa}
+  .xrow.ok{border-color:var(--green)}
+  .xrow.alt textarea{border-color:var(--red)}
 
   /* ---------- horários ---------- */
   .clock{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; align-items:start}
@@ -92,6 +124,13 @@
              font-variant-numeric:tabular-nums; line-height:1.15; white-space:nowrap; overflow:hidden}
   .tcard .tv.off{color:#c3c8ce}
   .trow{display:flex; gap:5px}
+  button.tcard{width:100%; font:inherit; cursor:pointer}
+  button.tcard:not(.set):not(.na){border-color:var(--red); border-style:solid}
+  button.tcard:not(.set):not(.na) .tv{color:var(--red)}
+  .tcard.lock{cursor:default}
+  .tcard .tsub{font-size:11px; color:var(--mut); min-height:15px}
+  .tcard input[type=time]{width:100%; font-size:20px; font-weight:800; color:var(--navy); text-align:center;
+       border:1.5px solid var(--line); border-radius:7px; padding:6px 2px; margin:2px 0 5px; background:#fff}
   .tnow{flex:1; background:var(--red); color:#fff; border:0; border-radius:7px; padding:9px 4px;
         font-weight:800; font-size:13.5px; min-height:44px}
   .tsm{background:#e7e9ed; color:var(--navy); border:0; border-radius:7px; padding:9px 8px;
@@ -137,14 +176,150 @@
   .mono{font-family:ui-monospace,Menlo,monospace; font-size:12px; white-space:pre-wrap;
         background:#f4f6f8; border:1px solid var(--line); border-radius:8px; padding:10px;
         max-height:40vh; overflow:auto}
+  .aviso{background:#fff4e5; border:1px solid #f0b46a; color:#5a3a00; border-radius:10px;
+         padding:10px 12px; margin-bottom:12px; font-size:14px}
+  .aviso.r{background:#fdecea; border-color:#e9a39d; color:#7a1712}
+  .fld input.sync, .dlg input{width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; margin:4px 0 8px}
+
+  /* =================== TEMA ESCURO — identidade EPM/UNIFESP =================== */
+  :root{
+    color-scheme:dark;         /* relógio, teclado numérico e seletores nativos no escuro */
+    --navy:#dbe7f5;            /* texto de destaque (títulos) */
+    --acc:#3b82d6; --acc2:#9cc3ef;
+    --red:#e5484d; --green:#3fb950; --amber:#d4a72c;
+    --line:#2a3b55; --bg:#0c141f; --card:#131f30; --card2:#0f1926;
+    --ink:#e6edf5; --mut:#8fa2bb;
+  }
+  body{background:radial-gradient(1200px 500px at 50% -200px,#1a2b44 0%,var(--bg) 60%) fixed, var(--bg)}
+  .top{background:rgba(12,20,31,.92); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+       border-bottom:1px solid var(--line); gap:8px}
+  .top .brand{display:flex; flex-direction:column; min-width:0; flex:1 1 auto; line-height:1.15}
+  .top .brand b{font-size:14px; letter-spacing:1.4px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .top .sp{display:none}
+  @media(max-width:480px){ .top .logos{display:none} .top .brand small{display:none}
+    .top .brand b{font-size:13px; letter-spacing:.6px} .btn.o{padding:8px 9px} .top .chip{font-size:12px; padding:5px 8px} .logos img{height:26px} }
+  .top .brand small{font-size:10.5px; letter-spacing:1.2px; color:var(--mut); text-transform:uppercase;
+       white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .logos{display:flex; gap:6px; align-items:center; flex:none}
+  .logos img{height:30px; width:auto; border-radius:4px; background:#fff; padding:2px}
+  .top .chip{background:#1d2c43; color:var(--acc2); font-weight:700; letter-spacing:.4px; white-space:nowrap}
+  .btn{background:#1d2c43; color:var(--ink); border:1px solid var(--line)}
+  .btn.p{background:#c62828; border-color:#c62828}
+  .btn.g{background:#238636; border-color:#238636}
+  .btn.o{border-color:#3a5070; color:#e6edf5; white-space:nowrap; padding:8px 11px; min-height:38px; font-size:13.5px}
+
+  .tabs{background:#0c141f; border-bottom:2px solid var(--acc); padding:4px 6px 0; gap:2px}
+  .tabs button{background:transparent; color:var(--mut); border-radius:0; text-transform:uppercase;
+       letter-spacing:1.2px; font-size:12.5px; font-weight:800; border-bottom:3px solid transparent; padding:12px 12px 9px}
+  .tabs button.on{background:transparent; color:#fff; border-bottom-color:var(--acc)}
+
+  .sec{background:var(--card); border:1px solid var(--line); box-shadow:none}
+  .sec h2{color:#fff; border-bottom:1px solid var(--line); letter-spacing:1.4px; font-size:13.5px}
+  .fld>label{text-transform:uppercase; letter-spacing:.9px; font-size:12px; color:var(--mut)}
+  .fld input[type=text],.fld input[type=number],.fld textarea,.fld select,.dlg input,
+  .tcard input[type=time]{background:var(--card2); color:var(--ink); border-color:var(--line)}
+  .fld input::placeholder,.fld textarea::placeholder{color:#5d7090}
+  input[type=number]{color:var(--ink); background:var(--card2)}
+  input:focus,textarea:focus{outline:2px solid var(--acc); outline-offset:0}
+
+  .opt{background:var(--card2); color:var(--ink); border-color:var(--line)}
+  .opt.on{background:var(--acc); border-color:var(--acc); color:#fff}
+  .opt.on.warn{background:#c62828; border-color:#c62828}
+  .opt.on.good{background:#238636; border-color:#238636}
+  .gcs .opt b{background:#1d2c43; color:var(--acc2)}
+  .gcs .opt.on b{background:#fff; color:var(--acc)}
+
+  .fwin{background:var(--card2); border-color:var(--line)}
+  .fwin .fwl{color:var(--ink)}
+  .fwin.pos{background:rgba(229,72,77,.14); border-color:var(--red)}
+  .fwin.pos .fwl{color:#ff8a8d}
+
+  .xrow{background:var(--card2); border-color:var(--line)}
+  .xltr{background:var(--acc); color:#fff}
+  .xnorm{color:#b8c6d8}
+  .xnorm b{color:#fff}
+  .btn-norm{background:transparent; color:var(--green); border-color:var(--green)}
+  .btn-norm.on{background:#238636; border-color:#238636; color:#fff}
+  .btn-alt{background:transparent; color:#ff6b6f; border-color:var(--red)}
+  .btn-alt.on{background:#c62828; border-color:#c62828; color:#fff}
+  .xrow.alt{background:rgba(229,72,77,.08); border-color:var(--red)}
+  .xrow.ok{border-color:#2f7d3e}
+
+  .tcard{background:var(--card2); border-color:var(--line)}
+  .tcard.set{background:#16263d; border-color:var(--acc)}
+  .tcard .tv{color:#fff}
+  .tcard .tv.off{color:#41536d}
+  button.tcard:not(.set):not(.na) .tv{color:#ff6b6f}
+  .tsm{background:#1d2c43; color:var(--ink)}
+
+  .alert.r{background:rgba(229,72,77,.14); color:#ffb3b5; border-color:var(--red)}
+  .alert.g{background:rgba(63,185,80,.12); color:#8fe39a; border-color:var(--green)}
+  .alert.a{background:rgba(212,167,44,.13); color:#f2cc60; border-color:var(--amber)}
+  .score{background:var(--card2); border-color:var(--line)}
+  .score.r{background:rgba(229,72,77,.12); border-color:var(--red)}
+  .score.g{background:rgba(63,185,80,.10); border-color:var(--green)}
+  .score.a{background:rgba(212,167,44,.12); border-color:var(--amber)}
+  .score .sv{color:#fff}
+
+  .foot{background:rgba(12,20,31,.96); border-top-color:var(--line)}
+  .caso{background:var(--card2); border-color:var(--line)}
+  .caso .id{color:#fff; font-variant-numeric:tabular-nums}
+  .badge.open{background:rgba(212,167,44,.16); color:#f2cc60}
+  .badge.closed{background:rgba(63,185,80,.15); color:#8fe39a}
+  dialog{background:var(--card); color:var(--ink); border:1px solid var(--line)}
+  .dlg h3{color:#fff}
+  .mono{background:var(--card2); color:#b8c6d8}
+  .aviso{background:rgba(212,167,44,.12); border-color:#6b5520; color:#f2cc60}
+  .aviso.r{background:rgba(229,72,77,.12); border-color:#7a2a2c; color:#ffb3b5}
+  .pend{background:rgba(212,167,44,.15); color:#f2cc60; border:1.5px solid var(--amber); border-radius:999px;
+        font-size:12px; font-weight:800; padding:6px 11px; white-space:nowrap}
+
+  /* ---------- capa (lista de casos) ---------- */
+  .hero{text-align:center; padding:22px 8px 18px; margin-bottom:14px; border-bottom:1px solid var(--line)}
+  .hero .logos{justify-content:center; gap:14px; margin-bottom:14px}
+  .hero .logos img{height:64px; padding:4px; border-radius:8px}
+  .hero h1{margin:0; font-weight:900; text-transform:uppercase; letter-spacing:3px; line-height:1.2;
+       font-size:clamp(20px, 4.2vw, 38px);
+       background:linear-gradient(180deg,#ffffff 0%,#b9d3f3 100%); -webkit-background-clip:text; background-clip:text; color:transparent}
+  .hero .sub{margin-top:12px; color:var(--mut); text-transform:uppercase; letter-spacing:2.6px; font-size:clamp(11px,2.6vw,14px); line-height:1.6}
+  .hero .sub b{color:#cfe0f5; font-weight:700}
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:12px 0 4px}
+  @media(max-width:780px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:12px 14px}
+  .stat .l{color:var(--mut); font-size:13.5px}
+  .stat .v{font-size:32px; font-weight:800; color:#fff; font-variant-numeric:tabular-nums; line-height:1.2; margin-top:6px}
+  .box{padding:10px; border:1.5px solid var(--line); border-radius:10px; background:var(--card2)}
+  .box.pos{border-color:var(--red); background:rgba(229,72,77,.08)}
+  .boxt{font-weight:700; color:#fff; margin-bottom:4px}
+  .tabs{top:var(--topH,0px)}
+  .pcr{margin-top:10px; padding:10px; border:1.5px solid var(--red); border-radius:10px; background:rgba(229,72,77,.08)}
+  .st{border-radius:14px; padding:14px; margin-bottom:12px; border:2px solid #7a1d22;
+      background:linear-gradient(135deg, rgba(150,20,30,.28), rgba(19,31,48,.9))}
+  .st.on{border-color:#ff4d55; box-shadow:0 0 0 3px rgba(255,77,85,.18), 0 0 24px rgba(255,77,85,.25);
+      background:linear-gradient(135deg, rgba(200,25,40,.42), rgba(60,12,18,.85))}
+  .sthead{display:flex; align-items:center; gap:12px}
+  .sthead b{display:block; color:#fff; font-size:18px; letter-spacing:2px}
+  .sthead small{display:block; color:#ffb3b5; font-size:12.5px; letter-spacing:.4px}
+  .stdrop{font-size:30px; line-height:1}
+  .stbtn{width:100%; margin-top:12px; min-height:56px; border:0; border-radius:10px; font-weight:900;
+      letter-spacing:2px; font-size:17px; color:#fff; background:#c62828}
+  .st .fld>label{color:#ffcdd0}
+  .badge.st{background:rgba(229,72,77,.2); color:#ffb3b5; margin-right:4px}
+  .creditos{text-align:center; color:var(--mut); font-size:12.5px; line-height:1.7; padding:18px 10px 8px;
+       border-top:1px solid var(--line); margin-top:8px}
+  .creditos b{color:#cfe0f5; font-weight:700}
+  .creditos .cr{letter-spacing:1.6px; text-transform:uppercase; font-size:11px; margin-bottom:6px}
+  .stat .v.g{color:var(--green)} .stat .v.a{color:var(--amber)}
 </style>
 </head>
 <body>
 
 <div class="top">
-  <h1>FICHA DE TRAUMA</h1>
+  <div class="logos" id="logosTop"></div>
+  <div class="brand"><b>FICHA DE TRAUMA</b><small>PS Cirurgia Geral · Hospital São Paulo</small></div>
   <span class="chip" id="chipCaso">—</span>
   <span class="sp"></span>
+  <button class="btn o" id="btnSync" title="Sincronização">☁︎ local</button>
   <button class="btn o" id="btnLista">Casos</button>
 </div>
 
@@ -165,8 +340,19 @@
     <button class="btn g" id="btnCopy">Copiar</button>
     <button class="btn" id="btnDl">Baixar CSV</button>
     <button class="btn" id="btnDlJson">Backup JSON</button>
+    <button class="btn" id="btnImp">Importar backup</button>
+    <input type="file" id="fileImp" accept=".json,application/json" style="display:none">
     <span class="sp"></span>
     <button class="btn" id="btnCloseExp">Fechar</button>
+  </div>
+</div></dialog>
+
+<dialog id="dlgSync"><div class="dlg">
+  <h3>Sincronização entre aparelhos</h3>
+  <div id="syncBody"></div>
+  <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap">
+    <span class="sp" style="flex:1"></span>
+    <button class="btn" id="btnCloseSync">Fechar</button>
   </div>
 </div></dialog>
 
@@ -176,27 +362,393 @@
 /* ============================ ESQUEMA ============================ */
 const HORARIOS = [
   ["h_trauma","Trauma"],["h_porta","Porta (chegada)"],["h_acesso","1º acesso funcionante"],
-  ["h_efast","E-FAST"],["h_atx","Ácido tranexâmico"],["h_ptm","PTM acionado"],
+  ["h_efast","E-FAST"],["h_atx","Ácido tranexâmico"],["h_ptm","PTM acionado"],["h_st","Sangue total acionado"],
   ["h_transf","1ª transfusão"],["h_tc","TC executada"],["h_aviso","Aviso cirúrgico"],
   ["h_cc","Entrada no CC"],["h_uti","Admissão UTI"],["h_saida","Saída da sala"]
 ];
 
+/* marcar o horário já responde a pergunta correspondente em outra aba */
+const HORARIO_IMPLICA = {
+  h_atx: ["atx","Feito"], h_ptm: ["ptm","Acionado"], h_st: ["st_acionado","Sim"], h_tc: ["tc","Sim"],
+  h_efast: ["efast_global", null]   /* null = só registra que foi feito; resultado continua manual */
+};
+
+/* Frases-padrão de NORMAL do serviço. Os {campos} são preenchidos com os
+   valores já registrados na Admissão / FAST; vazio aparece como "__". */
 const XABCDE = [
-  ["X","x","Sem sangramento ameaçador à vida",
+  ["X","x","Sem sangramento ameaçador à vida.",
    ["Compressão","Torniquete","Sutura hemostática"]],
-  ["A","a","Via aérea pérvia, sem enfisema ou hematoma cervical, sem desvio de traqueia",
+  ["A","a","Via aérea pérvia, sem enfisema ou hematoma cervical, sem desvio de traqueia, com CC + PR.",
    ["IOT","Cricotireoidostomia","Cânula orofaríngea"]],
-  ["B","b","MV presente bilateral, expansibilidade simétrica, tórax estável, lung slide presente",
+  ["B","b","FR: {fr} irpm. SO2: {spo2}% aa. Expansibilidade torácica simétrica, sem enfisema de subcutâneo. "
+         + "E-FAST com {ls}, sem outros achados.",
    ["Dreno à direita","Dreno à esquerda","Descompressão por agulha"]],
-  ["C","c","Estável, abdome indolor, pelve estável, TEC menor que 3 s",
+  ["C","c","PA: {pa}, FC {fc} bpm, sem dor à palpação abdominal e sem dor à palpação de ossos longos, "
+         + "pelve estável, TEC < 3 segundos, BCNF. FAST {fast}.",
    ["Cinta pélvica","Acesso intraósseo","Acesso central"]],
-  ["D","d","Pupilas isocóricas e fotorreagentes, sem déficit focal",
+  ["D","d","Glasgow {gcs} (O: {o} V: {v} M: {m}), pupilas isocóricas e fotorreagentes. Sem déficits focais.",
    ["Sinais de hipertensão intracraniana","Neurocirurgia acionada"]],
-  ["E","e","Dorso alinhado e sem lesões, pulsos 4/4, sem fratura exposta",
+  ["E","e","Dorso sem desalinhamento e sem lesões cutâneas. Controle térmico. Pulsos 4/4+ presentes bilateralmente. "
+         + "Sem dor à palpação de ossos longos. Sem dor à palpação de coluna.",
    ["Manta térmica","Fluido aquecido","Nenhum aquecimento"]]
 ];
+function fraseX(frase){
+  const v = k => { const x = get(k); return (x===undefined || x==="") ? "__" : esc(x); };
+  const fast = get("efast_global");
+  const vals = {
+    fr: v("adm_fr"), spo2: v("adm_spo2"), fc: v("adm_fc"),
+    pa: (get("adm_pas")||get("adm_pad")) ? v("adm_pas")+"x"+v("adm_pad")+" mmHg" : "__",
+    /* LS e FAST só aparecem depois do exame — nunca presumidos */
+    fast: fast ? esc(fast.toLowerCase()) : "__",
+    ls: lsTexto(),
+    gcs: gcsTotal()!==null ? gcsTotal() : "__", o: v("gcs_o"), v: v("gcs_v"), m: v("gcs_m")
+  };
+  return esc(frase).replace(/\{(\w+)\}/g, (_,k)=> '<b>'+(vals[k]!==undefined ? vals[k] : "__")+'</b>');
+}
+/* ---------- E-FAST: lung sliding por hemitórax e janelas abdominais ---------- */
+const LS_LADOS = [["efast_ls_d","Hemitórax direito"],["efast_ls_e","Hemitórax esquerdo"]];
+const FAST_JANELAS = [["fast_morrison","Hepatorrenal","espaço de Morrison"],
+                      ["fast_subxifoide","Pericárdica","subxifoide"],
+                      ["fast_espleno","Esplenorrenal",""],
+                      ["fast_pelvica","Pélvica","suprapúbica"]];
+const FAST_VALS = [["+","Positivo"],["−","Negativo"],["NR","NR"]];
 
-const SECOES = ["Identificação","Horários","iMIST-AMBO","Admissão","X-ABCDE","FAST / NEXUS","Hemostasia","Saída","Escores","Pós"];
+/* resumos calculados a partir dos detalhes (mantêm os campos antigos para RABT/CSV) */
+function derivarEfast(c){
+  const d = c.efast_ls_d, e = c.efast_ls_e;
+  if(d || e){
+    if(d==="Positivo" && e==="Positivo"){ c.efast_ls = "Positivo"; delete c.efast_ls_lado; }
+    else if(d==="Negativo" || e==="Negativo"){
+      c.efast_ls = "Negativo";
+      c.efast_ls_lado = (d==="Negativo" && e==="Negativo") ? "Bilateral" : (d==="Negativo" ? "Direito" : "Esquerdo");
+    }
+    else if(d && e){ c.efast_ls = (d==="NR" && e==="NR") ? "Não realizado" : "Positivo"; delete c.efast_ls_lado; }
+    else { delete c.efast_ls; delete c.efast_ls_lado; }      /* falta um lado */
+  }
+  const vals = FAST_JANELAS.map(j=>c[j[0]]);
+  if(vals.some(Boolean)){
+    const pos = FAST_JANELAS.filter(j=>c[j[0]]==="+").map(j=>j[1].toLowerCase());
+    if(pos.length){ c.efast_global = "Positivo"; c.efast_janelas_pos = pos.join(", "); }
+    else{
+      delete c.efast_janelas_pos;
+      if(vals.every(Boolean)) c.efast_global = vals.every(v=>v==="NR") ? "Não realizado" : "Negativo";
+      else delete c.efast_global;                             /* janelas faltando */
+    }
+  }
+}
+function lsTexto(){
+  const d = get("efast_ls_d"), e = get("efast_ls_e");
+  if(!d && !e){
+    const ls = get("efast_ls");                               /* casos antigos */
+    if(ls==="Positivo") return "LS+ em todo tórax";
+    if(ls==="Negativo") return "LS−";
+    return "LS __";
+  }
+  if(d==="Positivo" && e==="Positivo") return "LS+ em todo tórax";
+  const t = (v)=> v==="Positivo" ? "LS+" : (v==="Negativo" ? "LS−" : (v==="NR" ? "LS não avaliado" : "LS __"));
+  return t(d)+" à direita e "+t(e)+" à esquerda";
+}
+/* exame que cada letra exige antes de poder ser NORMAL */
+const EXAME_X = { b: ["efast_ls","Lung sliding dos dois hemitórax"], c: ["efast_global","FAST (as quatro janelas)"] };
+
+function botoesLS(){
+  let h = '<div class="fld"><label>Lung sliding (LS) — obrigatório</label>';
+  LS_LADOS.forEach(([k,rot])=>{
+    h += '<div class="fwin '+(get(k)==="Negativo"?"pos":"")+'"><span class="fwl">'+rot+'</span><div class="opts">'
+       + [["Positivo","Positivo"],["Negativo","Negativo"],["NR","NR"]].map(([v,r])=>
+           '<button class="opt '+(get(k)===v?"on"+(v==="Negativo"?" warn":""):"")+'" data-a="radio" data-k="'+k+'" data-v="'+v+'">'+r+'</button>').join("")
+       + '</div></div>';
+  });
+  const bil = get("efast_ls_d")==="Positivo" && get("efast_ls_e")==="Positivo";
+  h += '<button class="opt '+(bil?"on good":"")+'" data-a="lsbil" style="margin-top:6px">Bilateral — positivo em ambos'+(bil?" ✓":"")+'</button>';
+  if(get("efast_ls")==="Negativo")
+    h += '<div class="alert r">LS ausente '+({Bilateral:"bilateralmente",Direito:"à direita",Esquerdo:"à esquerda"}[get("efast_ls_lado")]||"")
+       + ' — suspeitar de pneumotórax.</div>';
+  return h + '</div>';
+}
+function botoesFAST(){
+  let h = '<div class="fld"><label>FAST — janelas (obrigatório)</label>';
+  FAST_JANELAS.forEach(([k,rot,sub])=>{
+    h += '<div class="fwin '+(get(k)==="+"?"pos":"")+'"><span class="fwl">'+rot+(sub?'<small>'+sub+'</small>':'')+'</span><div class="opts">'
+       + FAST_VALS.map(([v,r])=>'<button class="opt '+(get(k)===v?"on"+(v==="+"?" warn":""):"")+'" data-a="radio" data-k="'+k+'" data-v="'+v+'">'+r+'</button>').join("")
+       + '</div></div>';
+  });
+  const pos = FAST_JANELAS.filter(j=>get(j[0])==="+");
+  if(pos.length){
+    const peri = get("fast_subxifoide")==="+";
+    const abd = pos.filter(j=>j[0]!=="fast_subxifoide").map(j=>j[1].toLowerCase());
+    if(abd.length) h += '<div class="alert r">FAST POSITIVO — líquido livre na janela '+abd.join(", ")+'. Suspeitar de sangramento ativo.</div>';
+    if(peri) h += '<div class="alert r">Derrame pericárdico — suspeitar de tamponamento cardíaco.</div>';
+  }else if(FAST_JANELAS.some(j=>!get(j[0])) && FAST_JANELAS.some(j=>get(j[0]))){
+    h += '<div class="alert a">Faltam janelas: '+FAST_JANELAS.filter(j=>!get(j[0])).map(j=>j[1]).join(", ")+'.</div>';
+  }
+  return h + '</div>';
+}
+
+/* E-FAST-PLUS: diástase da sínfise púbica > 1,0 cm = pelve instável (livro aberto) */
+function sinfiseCm(){ const v = parseFloat(String(get("efast_sinfise_cm")||"").replace(",",".")); return isNaN(v) ? null : v; }
+function pelveInstavel(){ const v = sinfiseCm(); return v!==null && v>1.0; }
+function botoesPlus(){
+  const v = sinfiseCm(), inst = pelveInstavel();
+  let h = '<div class="fld"><label>E-FAST-PLUS — sínfise púbica</label>'
+        + '<div class="fwin '+(inst?"pos":"")+'"><span class="fwl">Distância da sínfise (cm)<small>&gt; 1,0 cm = pelve instável</small></span>'
+        + '<div class="opts" style="align-items:center">'
+        + '<input type="number" inputmode="decimal" step="0.1" min="0" data-k="efast_sinfise_cm" value="'+esc(get("efast_sinfise_cm")||"")+'" '
+        + 'placeholder="ex.: 0,6" style="flex:1; min-width:90px; padding:10px; border:1.5px solid '+(inst?"var(--red)":"var(--line)")+'; border-radius:8px; font-size:17px; font-weight:700">'
+        + '<button class="opt '+(get("efast_sinfise_cm")==="NR"?"on":"")+'" data-a="radio" data-k="efast_sinfise_cm" data-v="NR">NR</button>'
+        + '</div></div>';
+  if(inst) h += '<div class="alert r">Sínfise com '+String(v).replace(".",",")+' cm — fratura em livro aberto / pelve instável. '
+             + 'Cinta pélvica e suspeitar de sangramento retroperitoneal.'+(v>2.5?' Acima de 2,5 cm sugere lesão ligamentar posterior.':'')+'</div>';
+  else if(v!==null) h += '<div class="alert g">Sínfise com '+String(v).replace(".",",")+' cm — sem diástase.</div>';
+  return h + '</div>';
+}
+
+/* LS− ou FAST+ tornam a letra ALTERADA sozinha, com o achado já escrito */
+function sincronizarExameX(){
+  const c = caso();
+  derivarEfast(c);
+  const vira = (L, texto)=>{
+    delete c[L+"_normal"]; c[L+"_alt"] = true;
+    /* só escreve se o campo está vazio ou ainda tem o texto que o próprio app pôs */
+    if(!c[L+"_alterado"] || c[L+"_alterado"]===c["_auto_"+L]){ c[L+"_alterado"] = texto; c["_auto_"+L] = texto; }
+  };
+  /* achado corrigido: some o texto que o app escreveu (o digitado à mão fica) */
+  const desfaz = L=>{ if(c["_auto_"+L] && c[L+"_alterado"]===c["_auto_"+L]){ delete c[L+"_alterado"]; delete c[L+"_alt"]; delete c["_auto_"+L]; } };
+  if(c.efast_ls!=="Negativo") desfaz("b");
+  if(c.efast_ls==="Negativo") vira("b", "E-FAST com LS negativo "+(c.efast_ls_lado==="Bilateral" ? "bilateralmente" : (c.efast_ls_lado==="Direito" ? "à direita" : "à esquerda"))+".");
+  const partesC = [];
+  if(c.efast_global==="Positivo") partesC.push("FAST positivo — janela "+(c.efast_janelas_pos||"")+".");
+  if(pelveInstavel()) partesC.push("E-FAST-PLUS: sínfise púbica com "+String(sinfiseCm()).replace(".",",")+" cm — pelve instável (livro aberto).");
+  if(partesC.length) vira("c", partesC.join(" ")); else desfaz("c");
+  /* critério "fratura de pelve" do RABT acompanha a sínfise, sem desfazer marcação manual */
+  if(pelveInstavel() && !c.rabt_pelve){ c.rabt_pelve = true; c._imp_pelve = true; }
+  else if(!pelveInstavel() && c._imp_pelve){ delete c.rabt_pelve; delete c._imp_pelve; }
+  salvar();
+}
+
+/* incoerências entre a letra marcada NORMAL e o que já foi registrado em outra aba */
+function conflitoX(k){
+  if(estadoX(k)!=="N") return "";
+  if(k==="c" && get("efast_global")==="Positivo") return "FAST positivo registrado — C não deveria estar NORMAL.";
+  if(k==="b" && get("efast_ls")==="Negativo") return "LS negativo registrado — B não deveria estar NORMAL.";
+  if(k==="c" && pelveInstavel()) return "Sínfise > 1,0 cm registrada — C não deveria estar NORMAL.";
+  if(k==="d" && gcsTotal()!==null && gcsTotal()<15) return "Glasgow "+gcsTotal()+" registrado — D não deveria estar NORMAL.";
+  return "";
+}
+
+/* mecanismos combináveis (ex.: colisão auto + colisão moto) */
+const MECANISMOS = ["Colisão auto","Colisão moto","Atropelamento","Queda","FAF","FAB","Agressão","Outro"];
+const MEC_PENETRANTES = ["FAF","FAB"];
+function slugMec(m){ return "_mec_"+normalizar(m).replace(/[^a-z0-9]+/g,"_"); }
+function temPenetrante(){ const a=get("mecanismo"); return Array.isArray(a) && a.some(m=>MEC_PENETRANTES.indexOf(m)>=0); }
+function mecanismoMisto(){ const a=get("mecanismo"); return Array.isArray(a) && temPenetrante() && a.some(m=>MEC_PENETRANTES.indexOf(m)<0 && m!=="Outro"); }
+
+/* Alta velocidade: > 50 km/h para carro, > 32 km/h para moto */
+const VEL_LIMITE = {"Colisão auto":50, "Colisão moto":32};
+function velocidadeAlta(){
+  const v = parseFloat(String(get("velocidade")||"").replace(",","."));
+  if(!v) return null;                      /* sem velocidade informada: não decide */
+  const mecs = Array.isArray(get("mecanismo")) ? get("mecanismo") : [];
+  const lim = mecs.filter(m=>m in VEL_LIMITE).map(m=>VEL_LIMITE[m]);
+  if(!lim.length) return null;             /* velocidade só vale para colisão auto/moto */
+  return v > Math.min(...lim);             /* auto + moto: vale o limite da moto */
+}
+/* marca/desmarca o agravante sozinho; não mexe se alguém marcou à mão */
+function aplicarVelocidade(){
+  const c = caso(), alta = velocidadeAlta();
+  const marcado = Array.isArray(c.agravantes) && c.agravantes.indexOf("Alta velocidade")>=0;
+  if(alta===true && !marcado){ toggleMulti("agravantes","Alta velocidade"); c._imp_vel = true; salvar(); }
+  else if(alta!==true && marcado && c._imp_vel){ toggleMulti("agravantes","Alta velocidade"); delete c._imp_vel; salvar(); }
+}
+
+/* Escala de Coma de Glasgow — descritores (Teasdale, revisão de 2014) */
+const GCS = {
+  gcs_o: ["Abertura ocular (O)", [
+    ["4","Espontânea","olhos abertos sem estímulo"],
+    ["3","Ao som","abre ao chamado ou a qualquer som"],
+    ["2","À pressão","abre à pressão na ponta do dedo/trapézio"],
+    ["1","Ausente","não abre, mesmo à pressão"]]],
+  gcs_v: ["Resposta verbal (V)", [
+    ["5","Orientada","diz nome, local e data corretamente"],
+    ["4","Confusa","conversa, mas desorientada"],
+    ["3","Palavras","palavras inteligíveis e inapropriadas"],
+    ["2","Sons","gemidos, sons incompreensíveis"],
+    ["1","Ausente","nenhuma resposta verbal"]]],
+  gcs_m: ["Resposta motora (M)", [
+    ["6","Obedece a comandos","executa ordem simples (ex.: mostrar 2 dedos)"],
+    ["5","Localiza","leva a mão acima da clavícula até o estímulo"],
+    ["4","Flexão normal","retirada rápida do membro ao estímulo"],
+    ["3","Flexão anormal","decorticação — flexão lenta, estereotipada"],
+    ["2","Extensão","descerebração — extensão dos membros"],
+    ["1","Ausente","nenhum movimento"]]]
+};
+function fGcs(k){
+  const [rot, itens] = GCS[k];
+  let h = '<div class="fld"><label>'+rot+'</label><div class="gcs">';
+  itens.forEach(([v,nome,desc])=>{
+    h += '<button class="opt '+(get(k)===v?"on":"")+'" data-a="radio" data-k="'+k+'" data-v="'+v+'">'
+       + '<b>'+v+'</b><span>'+nome+'<small>'+desc+'</small></span></button>';
+  });
+  return h + '</div></div>';
+}
+function gcsGravidade(g){ return g<=8 ? "grave — considerar via aérea definitiva" : (g<=12 ? "moderado" : "leve"); }
+
+/* ácido tranexâmico — esquemas do serviço */
+const ATX_ESQUEMAS = ["1 g IV em 10 min + 1 g IV em dripping","2 g IV em bolus","1 g IV em bolus","Outro"];
+const ATX_LEGADO = {"1 g em 10 min + 1 g em 8 h":"1 g IV em 10 min + 1 g IV em dripping",
+                    "2 g em bolus único":"2 g IV em bolus","1 g dose única":"1 g IV em bolus"};
+
+/* cálcio: 1 ampola para cada 2 concentrados de hemácias */
+const CALCIO_TIPOS = ["Cloreto de cálcio 10% (preferencial)","Gluconato de cálcio 10% (na falta do cloreto)"];
+function calcioIndicado(){ const ch = parseInt(get("t_ch"),10); return ch>0 ? Math.floor(ch/2) : 0; }
+function blocoCalcio(){
+  const ch = parseInt(get("t_ch"),10) || 0, ind = calcioIndicado(), feito = parseInt(get("calcio_ampolas"),10) || 0;
+  let h = '<div class="box" style="margin-top:10px">'
+        + '<div class="boxt">Reposição de cálcio</div>'
+        + '<p class="hint" style="margin:0 0 8px">Para cada <b>2 concentrados de hemácias</b>, <b>1 ampola de cloreto de cálcio 10%</b> (preferencial). '
+        + 'Na ausência, gluconato de cálcio 10% — atenção: 1 ampola de cloreto ≈ 3 de gluconato em cálcio elementar.</p>'
+        + fRadio("calcio_tipo","Sal utilizado",CALCIO_TIPOS)
+        + '<div class="grid g2" style="margin-top:8px">'+fTexto("calcio_ampolas","Ampolas feitas","","number")+'</div>';
+  if(ch>=2){
+    const ok = feito>=ind;
+    h += '<div class="alert '+(ok?"g":"a")+'">'+ch+' hemácia'+(ch===1?"":"s")+' → '+ind+' ampola'+(ind===1?"":"s")+' de cálcio indicada'+(ind===1?"":"s")
+       + ' · feita'+(feito===1?"":"s")+': '+feito+(ok?" ✓":" — faltam "+(ind-feito))+'</div>';
+  }else if(get("ptm")==="Acionado"){
+    h += '<div class="alert a">PTM acionado: registre as hemácias abaixo para calcular o cálcio.</div>';
+  }
+  return h + '</div>';
+}
+
+/* ---------- Indicações de tomografia ----------
+   Cada item: [rótulo, função que detecta sozinho a partir da ficha (ou null = só manual)].
+   Item detectado aparece marcado "(auto)"; os demais são marcados à mão. */
+function num(k){ const v = parseFloat(String(get(k)||"").replace(",",".")); return isNaN(v) ? null : v; }
+function algumVital(ks, teste){ return ks.some(k=>{ const v=num(k); return v!==null && teste(v); }); }
+function temMec(m){ return tem("mecanismo",m); }
+const TCCI_GRUPOS = [
+  ["Mecanismo", [
+    ["Pedestre ou ciclista atropelado a qualquer velocidade", ()=>temMec("Atropelamento")],
+    ["Colisão de moto ou carro > 50 km/h", ()=>(temMec("Colisão auto")||temMec("Colisão moto")) && (num("velocidade")||0)>50],
+    ["Capotamento de carro ou ejeção do veículo", ()=>tem("agravantes","Ejeção")],
+    ["Morte de outro passageiro", ()=>tem("agravantes","Óbito no local")],
+    ["Queda de altura desconhecida ou > 3 m", ()=>temMec("Queda") && (num("queda_altura")||0)>3],
+    ["Explosão", null],
+    ["Compressão torácica", null],
+    ["Circunstâncias desconhecidas", null]]],
+  ["Sinais vitais iniciais", [
+    ["Glasgow < 10", ()=>{ const g=gcsTotal(); return (g!==null && g<10) || algumVital(["cena_gcs"], v=>v<10); }],
+    ["PAS < 80 mmHg", ()=>algumVital(["cena_pas","adm_pas"], v=>v<80)],
+    ["FR < 10 ou > 29 irpm", ()=>algumVital(["cena_fr","adm_fr"], v=>v<10||v>29)],
+    ["SatO2 < 90% (ou < 85% acima de 75 anos)", ()=>{ const lim=(num("idade")||0)>75?85:90; return algumVital(["cena_spo2","adm_spo2"], v=>v<lim); }]]],
+  ["Padrão de lesão", [
+    ["Tórax instável", null],
+    ["Instabilidade de anel pélvico", ()=>pelveInstavel() || !!get("rabt_pelve")],
+    ["Fratura de mais de 1 osso longo", null],
+    ["Amputação proximal", null]]]
+];
+const TCSEG_GRUPOS = [
+  ["Crânio / cervical", [
+    ["Glasgow < 15", ()=>{ const g=gcsTotal(); return g!==null && g<15; }],
+    ["Idade < 5 ou > 60 anos", ()=>{ const i=num("idade"); return i!==null && (i<5 || i>60); }],
+    ["Distúrbio de coagulação / anticoagulante", ()=>get("anticoag")==="Sim"],
+    ["Amnésia", null]]],
+  ["Tórax (alteração no RX de entrada)", [
+    ["Alargamento de mediastino", null],
+    ["Fratura de clavícula", null],
+    ["Suspeita de lesão vascular", null]]],
+  ["Abdome / pelve", [
+    ["Dor abdominal", null],
+    ["FAST positivo", ()=>get("efast_global")==="Positivo"],
+    ["RX de pelve com fratura", null],
+    ["Hematúria", null]]]
+];
+/* lista final (manual + automático) — usada na tela e no CSV */
+function indicacoes(grupos, chave){
+  const out = [];
+  grupos.forEach(([g,itens])=>itens.forEach(([rot,fn])=>{
+    if((fn && fn()) || tem(chave, rot)) out.push(rot);
+  }));
+  return out;
+}
+function blocoIndicacoes(titulo, grupos, chave){
+  let h = '<h3 style="margin:14px 0 4px; color:var(--navy); font-size:15px">'+titulo+'</h3>';
+  grupos.forEach(([g,itens])=>{
+    h += '<div class="fld" style="margin-top:8px"><label>'+g+'</label><div class="opts">';
+    itens.forEach(([rot,fn])=>{
+      const auto = !!(fn && fn());
+      const on = auto || tem(chave, rot);
+      h += auto
+        ? '<button class="opt on warn" style="pointer-events:none" title="detectado nos dados da ficha">'+rot+' · auto</button>'
+        : '<button class="opt '+(on?"on warn":"")+'" data-a="multi" data-k="'+chave+'" data-v="'+esc(rot)+'">'+rot+'</button>';
+    });
+    h += '</div></div>';
+  });
+  return h;
+}
+const TC_CONTRASTE = [["Split-bolus","fase arterial e portal numa só aquisição"],
+                      ["Trifásico","sem contraste, arterial e portal"],
+                      ["Excretor tardio","fase excretora para via urinária"],
+                      ["Sem contraste",""]];
+
+/* Logos institucionais: o app usa os arquivos oficiais se estiverem no repositório
+   (logo-epm.png e logo-unifesp.png, ou .svg). Sem arquivo, o espaço simplesmente some. */
+const LOGOS = [["logo-epm","Escola Paulista de Medicina"],["logo-unifesp","UNIFESP"]];
+function htmlLogos(){
+  return LOGOS.map(([f,alt])=>'<img src="'+f+'.png" alt="'+alt+'" '
+    + 'onerror="if(!this.dataset.t){this.dataset.t=1;this.src=\''+f+'.svg\'}else{this.remove()}">').join("");
+}
+
+/* sinais vitais ausentes: dados da PCR */
+function blocoPCR(){
+  const desc = get("pcr_tempo_min")==="Desconhecido";
+  return '<div class="pcr">'
+    + '<div class="alert r" style="margin:0 0 10px">Sinais vitais ausentes — parada cardiorrespiratória.</div>'
+    + fRadio("pcr_chegada","Chegou em PCR?",["Sim","Não — RCE antes da chegada"])
+    + '<div style="margin-top:10px">'+fRadio("pcr_assistida","A PCR foi assistida (presenciada pela equipe do APH)?",["Sim","Não","Não informado"])+'</div>'
+    + '<div class="fld" style="margin-top:10px"><label>Parado(a) há quanto tempo?</label>'
+    + '<div class="opts" style="align-items:center">'
+    + (desc ? '<span class="hint" style="flex:1">tempo desconhecido</span>'
+            : '<input type="number" inputmode="numeric" min="0" data-k="pcr_tempo_min" value="'+esc(get("pcr_tempo_min")||"")+'" placeholder="minutos" '
+              + 'style="flex:1; min-width:110px; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--card2); color:var(--ink); font-size:17px; font-weight:700">'
+              + '<span class="hint">min</span>')
+    + '<button class="opt '+(desc?"on":"")+'" data-a="radio" data-k="pcr_tempo_min" data-v="Desconhecido">Desconhecido</button>'
+    + '</div></div>'
+    + '</div>';
+}
+
+/* ---------- SANGUE TOTAL (disponível no PS do HSP) ---------- */
+function stAcionado(){ return get("st_acionado")==="Sim"; }
+function blocoSangueTotal(){
+  if(!stAcionado()){
+    return '<div class="st off">'
+      + '<div class="sthead"><span class="stdrop">🩸</span><div><b>SANGUE TOTAL</b><small>disponível no PS do Hospital São Paulo</small></div></div>'
+      + '<button class="stbtn" data-a="st">ACIONAR SANGUE TOTAL</button>'
+      + '<div style="margin-top:8px">'+fRadio("st_acionado","Se não for acionar",["Não indicado"])+'</div>'
+      + '</div>';
+  }
+  const ts = get("_ts_h_st");
+  return '<div class="st on">'
+    + '<div class="sthead"><span class="stdrop">🩸</span><div><b>SANGUE TOTAL ACIONADO</b>'
+    + '<small>'+(get("h_st") && get("h_st")!=="NA" ? "às "+get("h_st")+(ts?" ("+new Date(ts).toLocaleTimeString("pt-BR")+")":"") : "horário não registrado")+'</small></div></div>'
+    + '<div class="grid g3" style="margin-top:10px">'
+    + fTexto("t_st","Unidades transfundidas","","number")
+    + fRadio("st_tipo","Tipo",["O+","O−","Isogrupo"])
+    + '<div class="fld"><label>1ª unidade correndo</label>'
+    + (get("st_primeira")
+        ? '<div class="opts" style="align-items:center"><b style="font-size:22px; color:#fff">'+esc(get("st_primeira"))+'</b>'
+          + '<button class="tsm" data-a="limpar" data-k="st_primeira">desfazer</button></div>'
+        : '<button class="stbtn" style="margin-top:0; min-height:46px; font-size:14px; letter-spacing:1px" data-a="agora" data-k="st_primeira">TOCAR — REGISTRA A HORA</button>')
+    + '</div>'
+    + '</div>'
+    + '<div class="grid g2" style="margin-top:8px">'
+    + fRadio("st_reacao","Reação transfusional",["Não","Sim"])
+    + (get("st_reacao")==="Sim" ? fTexto("st_reacao_desc","Qual reação") : "")
+    + '</div>'
+    + '<div style="margin-top:10px; text-align:right"><button class="tsm" data-a="st">desfazer acionamento</button></div>'
+    + '</div>';
+}
+
+const SECOES = ["Identificação","Horários","iMIST-AMBO","Admissão","X-ABCDE","E-FAST","Hemostasia","Saída","Escores","Pós"];
 
 /* regiões do AIS para o cálculo do ISS */
 const AIS_REGIOES = [
@@ -206,32 +758,102 @@ const AIS_REGIOES = [
 
 /* ============================ ESTADO ============================ */
 const KEY = "fichaTrauma.casos.v1";
+const KEY_SIGLA = "fichaTrauma.sigla";
+
+/* ======== SINCRONIZAÇÃO (opcional) ========
+   Enquanto FIREBASE_CONFIG for null, o app funciona 100% local, como antes.
+   Para ligar: cole aqui o objeto de configuração do seu projeto Firebase
+   (Console → Configurações do projeto → Seus apps → Web). Ver LEIA-ME. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB1FgUk5-0imG-tSEg46AEG8egRT4pSW7g",
+  authDomain: "ficha-politrauma-hsp.firebaseapp.com",
+  projectId: "ficha-politrauma-hsp",
+  storageBucket: "ficha-politrauma-hsp.firebasestorage.app",
+  messagingSenderId: "717735948513",
+  appId: "1:717735948513:web:6d0397a7471c45c0d507a0"
+};
+const FIREBASE_VER = "10.12.2";
+
 let CASOS = [];
-let atual = null;      // índice do caso aberto
+let atualUid = null;   // _uid do caso aberto
 let aba = 0;
 let vista = "lista";   // "lista" | "ficha"
+let STORAGE_OK = true;
 
+function uid(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,10);
+}
+function agoraISO(){ return new Date().toISOString(); }
+/* garante _uid e _atualizado em casos antigos (v7 ou anteriores) */
+function normalizarCaso(c){
+  /* casos antigos: _uid determinístico, para o mesmo caso nunca virar dois */
+  if(!c._uid) c._uid = (c.id||c._criado) ? "legado-"+(c.id||"")+"-"+(c._criado||"") : uid();
+  if(!c._atualizado) c._atualizado = c._criado || agoraISO();
+  if(c.efast_ls && !c.efast_ls_d && !c.efast_ls_e){
+    if(c.efast_ls==="Positivo"){ c.efast_ls_d = c.efast_ls_e = "Positivo"; }
+    else if(c.efast_ls==="Negativo"){
+      if(c.efast_ls_lado!=="Esquerdo") c.efast_ls_d = "Negativo";
+      if(c.efast_ls_lado!=="Direito") c.efast_ls_e = "Negativo";
+    }
+  }
+  if(c.atx_esquema && ATX_LEGADO[c.atx_esquema]) c.atx_esquema = ATX_LEGADO[c.atx_esquema];
+  if(typeof c.mecanismo==="string") c.mecanismo = [c.mecanismo];
+  if(Array.isArray(c.mecanismo)) c.mecanismo = c.mecanismo.map(m=> m==="Moto" ? "Colisão moto" : m);
+  return c;
+}
+/* união por _uid: vence a versão editada por último */
+function mesclar(a, b){
+  const m = new Map();
+  a.concat(b||[]).forEach(c=>{
+    if(!c || typeof c!=="object") return;
+    normalizarCaso(c);
+    const x = m.get(c._uid);
+    if(!x || String(c._atualizado) > String(x._atualizado)) m.set(c._uid, c);
+  });
+  return [...m.values()].sort((x,y)=>String(y._criado||"").localeCompare(String(x._criado||"")));
+}
+function lerLocal(){
+  try{ const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : []; }
+  catch(e){ return []; }
+}
 function carregar(){
   try{
-    const raw = localStorage.getItem(KEY);
-    CASOS = raw ? JSON.parse(raw) : [];
-  }catch(e){ CASOS = []; avisoStorage(); }
+    localStorage.setItem("fichaTrauma.teste","1"); localStorage.removeItem("fichaTrauma.teste");
+  }catch(e){ STORAGE_OK = false; avisoStorage(); }
+  CASOS = mesclar(lerLocal(), []);
+}
+function gravarLocal(){
+  try{
+    /* relê antes de gravar: outra aba/janela pode ter salvo no meio tempo */
+    CASOS = mesclar(CASOS, lerLocal());
+    localStorage.setItem(KEY, JSON.stringify(CASOS));
+    return true;
+  }catch(e){ return false; }
 }
 function salvar(){
-  try{
-    localStorage.setItem(KEY, JSON.stringify(CASOS));
-    flash("salvo " + agoraHM());
-  }catch(e){ flash("SEM ARMAZENAMENTO — exporte antes de fechar", true); }
+  const c = CASOS.find(x=>x._uid===atualUid);
+  if(c) c._atualizado = agoraISO();
+  if(gravarLocal()) flash("salvo " + agoraHM());
+  else flash("SEM ARMAZENAMENTO — exporte antes de fechar", true);
+  Sync.agendar();
 }
+function ativos(){ return CASOS.filter(c=>!c._apagado); }
 function avisoStorage(){
   console.warn("localStorage indisponível — dados só na memória desta sessão");
 }
+/* outra aba do mesmo navegador salvou: incorpora sem perder o que está aberto */
+window.addEventListener("storage", e=>{
+  if(e.key!==KEY) return;
+  CASOS = mesclar(CASOS, lerLocal());
+  if(vista==="lista") render();
+});
 let flashT=null;
 function flash(msg, erro){
   const el = document.getElementById("saveMsg");
   if(!el) return;
   el.textContent = msg;
-  el.style.color = erro ? "#c62828" : "#2e7d32";
+  el.style.color = erro ? "#ff6b6f" : "#3fb950";
   clearTimeout(flashT);
   if(!erro) flashT = setTimeout(()=>{ el.textContent = "salvo"; }, 2500);
 }
@@ -244,19 +866,27 @@ function hojeBR(){ const d=new Date(); return dois(d.getDate())+"/"+dois(d.getMo
 
 function proximoId(){
   /* maior sequencial existente + 1 — contar casos duplicaria IDs após edição ou exclusão */
+  /* com mais de um aparelho, a SIGLA evita dois iPads gerarem o mesmo número offline */
   const ano = new Date().getFullYear();
+  let sigla = ""; try{ sigla = (localStorage.getItem(KEY_SIGLA)||"").toUpperCase(); }catch(e){}
+  const pref = "TR-"+ano+"-"+(sigla ? sigla+"-" : "");
   let max = 0;
   CASOS.forEach(c=>{
-    const m = String(c.id||"").match(new RegExp("^TR-"+ano+"-(\\d+)$"));
+    const id = String(c.id||"");
+    if(id.indexOf(pref)!==0) return;
+    const m = id.slice(pref.length).match(/^(\d+)$/);
     if(m) max = Math.max(max, +m[1]);
   });
-  return "TR-"+ano+"-"+String(max+1).padStart(4,"0");
+  return pref+String(max+1).padStart(4,"0");
 }
 function novoCaso(){
-  const c = { id: proximoId(), data: hojeBR(), _criado: new Date().toISOString(), _fechado:false };
-  CASOS.unshift(c); atual = 0; aba = 0; vista="ficha"; PARSE_MSG=""; salvar(); render();
+  /* abrir o caso = paciente chegou: a Porta é gravada sozinha neste instante */
+  const agora = new Date();
+  const c = { id: proximoId(), data: hojeBR(), _criado: agora.toISOString(), _atualizado: agora.toISOString(), _uid: uid(), _fechado:false,
+              h_porta: dois(agora.getHours())+":"+dois(agora.getMinutes()), _ts_h_porta: agora.toISOString() };
+  CASOS.unshift(c); atualUid = c._uid; aba = 0; vista="ficha"; PARSE_MSG=""; salvar(); render();
 }
-function caso(){ return CASOS[atual] || {}; }
+function caso(){ return CASOS.find(c=>c._uid===atualUid) || {}; }
 function set(k,v){ const c=caso(); if(v===undefined||v===null||v==="") delete c[k]; else c[k]=v; salvar(); }
 function get(k){ return caso()[k]; }
 function toggleMulti(k,v){
@@ -289,12 +919,25 @@ function shockIndex(){
   return Math.round((fc/pas)*100)/100;
 }
 /* ---------- RABT (Revised Assessment of Bleeding and Transfusion) ----------
-   4 critérios: mecanismo penetrante · FAST positivo · Shock Index > 1,0 ·
+   4 critérios: ferimento penetrante EM TORSO · FAST positivo · Shock Index > 1,0 ·
    fratura de pelve (suspeita ou confirmada). RABT ≥ 2 → acionar PTM.
    Não confundir com o ABC score, que usa PAS ≤ 90 e FC ≥ 120 no lugar do SI. */
+/* torso = tórax, abdome, flanco, dorso ou pelve. Penetrante em membro, cabeça ou pescoço não pontua. */
+const TORSO_TXT = "tórax, abdome, flanco, dorso ou pelve";
+/* basta marcar "ferimento penetrante em torso"; só não vale se a Cena registrou trauma contuso */
+function cenaContusa(){ return get("mecanismo_tipo")==="Contuso" && !temPenetrante(); }
+function rabtTorso(){ return get("rabt_torso")==="Sim" && !cenaContusa(); }
+function perguntaTorso(){
+  if(!ehPenetrante()) return "";
+  const r = get("rabt_torso");
+  return '<div class="box '+(r==="Sim"?"pos":"")+'" style="margin-top:8px">'
+       + fRadio("rabt_torso","O ferimento penetrante é em TORSO? ("+TORSO_TXT+")",["Sim","Não"])
+       + (r ? "" : '<div class="alert a" style="margin:8px 0 0">Responda: no RABT, o penetrante só pontua se for em torso.</div>')
+       + '</div>';
+}
 function rabtPontos(){
   let n=0;
-  if(ehPenetrante()) n++;
+  if(rabtTorso()) n++;
   if(get("efast_global")==="Positivo") n++;
   const si=shockIndex(); if(si!==null && si>1) n++;
   if(get("rabt_pelve")) n++;
@@ -362,7 +1005,7 @@ function iss(){
    Prioridade: campo "Tipo de trauma" da Cena → mecanismo FAF/FAB → marcação manual. */
 function ehPenetrante(){
   if(get("mecanismo_tipo")) return get("mecanismo_tipo")==="Penetrante";
-  if(["FAF","FAB"].indexOf(get("mecanismo"))>=0) return true;
+  if(temPenetrante()) return true;
   return !!get("rabt_penetrante");
 }
 function trissPenetrante(){
@@ -457,24 +1100,34 @@ function parseAPH(){
   }
   function mecanismo(t, original){
     let m;
-    const mecs=[[/atropel/,"Atropelamento"],[/\bmoto\b|motocicl/,"Moto"],
-      [/colis|automovel|capot|veicul|\bcarro\b/,"Colisão auto"],[/queda/,"Queda"],
-      [/\bfaf\b|arma de fogo|balead|\btiro\b|\bpaf\b/,"FAF"],[/\bfab\b|arma branca|facada|esfaquead/,"FAB"],
-      [/agress|espancad/,"Agressão"]];
-    let achou=false;
-    for(const [re,val] of mecs){ if(re.test(t)){ poe("mecanismo",val,"mecanismo "+val); achou=true; break; } }
-    if(!achou && original.trim()){
-      poe("mecanismo","Outro","mecanismo Outro");
+    /* marca todos os mecanismos citados, não só o primeiro */
+    const achados=[];
+    if(/atropel/.test(t)) achados.push("Atropelamento");   /* pedestre: o veículo citado não é mecanismo à parte */
+    else{
+      const moto = /\bmoto\b|motocicl|motociclista/.test(t);
+      if(moto) achados.push("Colisão moto");
+      if(/automovel|\bauto\b|\bcarro\b|veicul|capot|caminh|onibus/.test(t) || (/colis|abalroa|capot/.test(t) && !moto))
+        achados.push("Colisão auto");
+    }
+    /* "queda de moto" é acidente de moto, não queda de altura */
+    if(/queda/.test(t.replace(/queda (d[aoe]s? )?(propria )?(moto\w*|bicicleta|bike)/g,""))) achados.push("Queda");
+    if(/\bfaf\b|arma de fogo|balead|\btiro\b|\bpaf\b/.test(t)) achados.push("FAF");
+    if(/\bfab\b|arma branca|facada|esfaquead/.test(t)) achados.push("FAB");
+    if(/agress|espancad/.test(t)) achados.push("Agressão");
+    achados.forEach(v=> marca("mecanismo",v,"mecanismo "+v));
+    if(!achados.length && original.trim()){
+      marca("mecanismo","Outro","mecanismo Outro");
       poe("mecanismo_outro", original.trim(), "descrição: "+original.trim().slice(0,40));
     }
     if(/\bfaf\b|arma de fogo|balead|\btiro\b|\bfab\b|arma branca|facada|esfaquead|penetrante/.test(t))
       poe("mecanismo_tipo","Penetrante","tipo penetrante");
     else poe("mecanismo_tipo","Contuso","tipo contuso");
-    if(get("mecanismo")==="Queda" && (m=t.match(/(\d+(?:[.,]\d+)?)\s*m(?:etros)?\b/)))
+    if(tem("mecanismo","Queda") && (m=t.match(/(\d+(?:[.,]\d+)?)\s*m(?:etros)?\b/)))
       poe("queda_altura",m[1].replace(",","."),"altura "+m[1]+" m");
     const agg=[[/ejetad|ejecao/,"Ejeção"],[/obito no local|morte no local/,"Óbito no local"],
       [/encarcerad/,"Encarceramento"],[/sem capacete|sem cinto/,"Sem cinto/capacete"],[/alta velocidade/,"Alta velocidade"]];
     for(const [re,val] of agg){ if(re.test(t)) marca("agravantes",val,"agravante: "+val); }
+    if(m=t.match(/(\d{2,3})\s*km\s*\/?\s*h/)){ poe("velocidade",m[1],"velocidade "+m[1]+" km/h"); aplicarVelocidade(); }
   }
   function transporte(t){
     if(/samu/.test(t)) poe("transporte","SAMU","transporte SAMU");
@@ -525,6 +1178,9 @@ function parseAPH(){
     if(letra==="b"){
       if(m=t.match(rxFR))  poe("adm_fr",m[1],"FR admissão "+m[1]);
       if(m=t.match(rxSAT)) poe("adm_spo2",m[1],"SatO2 admissão "+m[1]);
+      if(/\bls\s*\+\s*(em todo torax|bilateral)|ls positivo bilateral/.test(t)){
+        poe("efast_ls_d","Positivo","LS+ à direita"); poe("efast_ls_e","Positivo","LS+ à esquerda"); derivarEfast(caso());
+      }
       const tb = t.replace(/sem enfisema[^,.;]*/g," ");
       const alt = /puncao|dreno|pneumotorax|hemotorax|hipofonese|abolid|assimetr|instabil|flictena|crepita|ventilacao nao efetiva|queimadura|enfisema/.test(tb);
       if(alt) setAlt();
@@ -649,44 +1305,72 @@ function parseAPH(){
     + "<b>Confira cada campo — a responsabilidade é de quem assina.</b>";
 }
 
+/* aspas ou "<" digitados não podem quebrar o campo ao redesenhar */
+function esc(x){ return String(x).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
 /* ============================ RENDER ============================ */
 const app = document.getElementById("app");
 
+function ajustarTopo(){
+  const t = document.querySelector(".top");
+  if(t) document.documentElement.style.setProperty("--topH", t.offsetHeight+"px");
+}
+window.addEventListener("resize", ajustarTopo);
 function render(){
   document.getElementById("foot").style.display = vista==="ficha" ? "flex" : "none";
   document.getElementById("chipCaso").textContent =
-    vista==="ficha" ? (get("id")||"—") : (CASOS.length+" caso"+(CASOS.length===1?"":"s"));
+    vista==="ficha" ? (get("id")||"—") : (ativos().length+" caso"+(ativos().length===1?"":"s"));
   app.innerHTML = vista==="lista" ? htmlLista() : htmlFicha();
   ligar();
+  ajustarTopo();
   window.scrollTo(0,0);
 }
 
 /* ---------- LISTA ---------- */
 function htmlLista(){
-  let h = '<div class="wrap">';
+  const lista0 = ativos(), mes = hojeBR().slice(3);
+  const abertos = lista0.filter(c=>!c._fechado).length;
+  let h = '<div class="wrap">'
+    + '<div class="hero"><div class="logos">'+htmlLogos()+'</div>'
+    + '<h1>Ficha de Padronização Assistencial de Atendimento ao Politraumatizado</h1>'
+    + '<div class="sub"><b>Escola Paulista de Medicina – UNIFESP</b><br>PS Cirurgia Geral · Hospital São Paulo</div></div>'
+    + '<div class="stats">'
+    + '<div class="stat"><div class="l">Casos registrados</div><div class="v g">'+lista0.length+'</div></div>'
+    + '<div class="stat"><div class="l">Em aberto</div><div class="v a">'+abertos+'</div></div>'
+    + '<div class="stat"><div class="l">Fechados</div><div class="v">'+(lista0.length-abertos)+'</div></div>'
+    + '<div class="stat"><div class="l">Neste mês</div><div class="v">'+lista0.filter(c=>String(c.data||"").slice(3)===mes).length+'</div></div>'
+    + '</div>';
   h += '<div class="sec"><div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">'
-     + '<button class="btn p" data-a="novo" style="font-size:17px; padding:14px 22px">+ Novo código vermelho</button>'
+     + '<button class="btn p" data-a="novo" style="font-size:17px; padding:14px 22px">+ Paciente chegou — novo caso</button>'
      + '<span class="sp" style="flex:1"></span>'
      + '<button class="btn" data-a="export">Exportar dados</button>'
      + '</div>'
      + '<p class="hint" style="margin:10px 0 0">Não digite nome, prontuário ou iniciais neste aparelho. '
      + 'A ligação entre o código do estudo e o paciente fica no caderno de triagem da sala.</p></div>';
 
-  h += '<div class="sec"><h2>Casos neste aparelho</h2>';
-  if(!CASOS.length){
+  h += avisosAmbiente();
+  h += '<div class="sec"><h2>'+(Sync.ligado() ? "Casos da equipe" : "Casos neste aparelho")+'</h2>';
+  const lista = ativos();
+  if(!lista.length){
     h += '<div class="empty">Nenhum caso registrado ainda.</div>';
   }else{
-    CASOS.forEach((c,i)=>{
+    lista.forEach(c=>{
       const t = c.h_porta ? ("porta "+c.h_porta) : "sem horário de porta";
       const dest = c.destino ? " · "+c.destino : "";
-      h += '<div class="caso"><span class="id">'+(c.id||"?")+'</span>'
-         + '<span class="meta">'+(c.data||"")+' · '+t+dest+'</span>'
+      h += '<div class="caso"><span class="id">'+esc(c.id||"?")+'</span>'
+         + '<span class="meta">'+esc(c.data||"")+' · '+esc(t+dest)+'</span>'
+         + (c.st_acionado==="Sim" ? '<span class="badge st">🩸 sangue total</span>' : '')
          + '<span class="badge '+(c._fechado?"closed":"open")+'">'+(c._fechado?"fechado":"em aberto")+'</span>'
-         + '<button class="btn" data-a="abrir" data-i="'+i+'">Abrir</button>'
-         + '<button class="btn" data-a="apagar" data-i="'+i+'" style="color:#c62828">Apagar</button></div>';
+         + '<button class="btn" data-a="abrir" data-u="'+c._uid+'">Abrir</button>'
+         + '<button class="btn" data-a="apagar" data-u="'+c._uid+'" style="color:#ff6b6f">Apagar</button></div>';
     });
   }
-  h += '</div></div>';
+  h += '</div>';
+  h += '<div class="creditos">'
+     + '<div class="cr">© Outubro de 2026 · Escola Paulista de Medicina – UNIFESP</div>'
+     + 'Desenvolvido por <b>Lucas Domingos Ribeiro</b> e <b>Marcos Vinícius Veanholi</b><br>'
+     + 'Orientação: <b>Prof. Dr. Diego Adão</b>'
+     + '</div></div>';
   return h;
 }
 
@@ -703,10 +1387,10 @@ function htmlFicha(){
 /* --- componentes --- */
 function fTexto(k,label,ph,tipo){
   return '<div class="fld"><label>'+label+'</label><input type="'+(tipo||"text")+'" data-k="'+k+'" '
-       + (tipo==="number"?'inputmode="decimal" ':'') + 'value="'+(get(k)||"")+'" placeholder="'+(ph||"")+'"></div>';
+       + (tipo==="number"?'inputmode="decimal" ':'') + 'value="'+esc(get(k)||"")+'" placeholder="'+(ph||"")+'"></div>';
 }
 function fArea(k,label,ph){
-  return '<div class="fld"><label>'+label+'</label><textarea data-k="'+k+'" placeholder="'+(ph||"")+'">'+(get(k)||"")+'</textarea></div>';
+  return '<div class="fld"><label>'+label+'</label><textarea data-k="'+k+'" placeholder="'+(ph||"")+'">'+esc(get(k)||"")+'</textarea></div>';
 }
 function fRadio(k,label,vals,estilo){
   let h='<div class="fld"><label>'+label+'</label><div class="opts">';
@@ -751,21 +1435,42 @@ function secId(){
 /* --- 1 · horários --- */
 function secHorarios(){
   let h='<div class="sec"><h2>Relógio do atendimento</h2>'
-   + '<p class="hint" style="margin:-4px 0 12px">Toque em AGORA no instante em que a coisa acontece. '
-   + 'N/A marca o que não se aplica — diferente de deixar vazio.</p><div class="clock">';
+   + '<p class="hint" style="margin:-4px 0 12px">Só o <b>Trauma</b> é digitado (horário informado pelo APH). A <b>Porta</b> é gravada ao abrir o caso. '
+   + 'Os demais: toque no cartão no instante em que acontece — o relógio do aparelho registra sozinho. '
+   + 'N/A marca o que não se aplica, diferente de deixar vazio.</p><div class="clock">';
   HORARIOS.forEach(([k,rot])=>{
     const v = get(k);
     const na = v==="NA";
-    h += '<div class="tcard '+(v&&!na?"set":"")+' '+(na?"na":"")+'">'
+    if(k==="h_trauma"){
+      h += '<div class="tcard '+(v&&!na?"set":"")+' '+(na?"na":"")+'">'
+         + '<div class="tl">'+rot+'</div>'
+         + (na ? '<div class="tv">N/A</div>'
+               : '<input type="time" data-k="h_trauma" value="'+esc(v||"")+'">')
+         + '<div class="trow"><button class="tsm" style="flex:1" data-a="na" data-k="'+k+'">'+(na?"Informar horário":"Desconhecido")+'</button></div>'
+         + '</div>';
+      return;
+    }
+    if(!v){
+      /* cartão inteiro é o botão: um toque grava a hora */
+      h += '<div><button class="tcard" data-a="agora" data-k="'+k+'">'
+         + '<div class="tl">'+rot+'</div><div class="tv">TOCAR</div>'
+         + '<div class="tsub">registra a hora atual</div></button>'
+         + '<div style="margin:-4px 0 0; text-align:center"><button class="tsm" data-a="na" data-k="'+k+'" style="padding:5px 10px; font-size:12px; min-height:34px; margin-top:8px">N/A</button></div></div>';
+      return;
+    }
+    const ts = get("_ts_"+k);
+    const seg = ts ? new Date(ts).toLocaleTimeString("pt-BR") : "";
+    h += '<div class="tcard lock '+(na?"na":"set")+'">'
        + '<div class="tl">'+rot+'</div>'
-       + '<div class="tv '+(v?"":"off")+'">'+(na?"N/A":(v||"--:--"))+'</div>'
-       + '<div class="trow">'
-       + '<button class="tnow" data-a="agora" data-k="'+k+'">AGORA</button>'
-       + '<button class="tsm" data-a="editar" data-k="'+k+'">✎</button>'
-       + '<button class="tsm" data-a="na" data-k="'+k+'">N/A</button>'
-       + '</div></div>';
+       + '<div class="tv">'+(na?"N/A":v)+'</div>'
+       + '<div class="tsub">'+(seg?"registrado "+seg:"")+'</div>'
+       + '<div class="trow"><button class="tsm" style="flex:1" data-a="limpar" data-k="'+k+'">desfazer</button></div>'
+       + '</div>';
   });
   h+='</div>';
+
+  const dTP = difMin(get("h_trauma"), get("h_porta"));
+  if(dTP!==null && dTP<0) h += '<div class="alert a" style="margin-top:12px">Horário do trauma está depois da chegada — confira o que o APH informou.</div>';
 
   // intervalos calculados
   const pares = [["h_porta","h_tc","Porta → TC"],["h_porta","h_transf","Porta → 1ª transfusão"],
@@ -806,22 +1511,36 @@ function secCena(){
    + '<div class="sec"><h2>M · Mecanismo do trauma</h2>'
    + fRadio("mecanismo_tipo","Tipo de trauma",["Contuso","Penetrante"])
    + '<div style="margin-top:10px">'
-   + fRadio("mecanismo","Mecanismo",["Colisão auto","Moto","Atropelamento","Queda","FAF","FAB","Agressão","Outro"])
+   + fMulti("mecanismo","Mecanismo — marque todos os envolvidos",MECANISMOS)
    + '</div>'
-   + (get("mecanismo")==="Queda" ? '<div class="grid g4" style="margin-top:8px">'+fTexto("queda_altura","Altura da queda (m)","","number")+'</div>' : "")
-   + (get("mecanismo")==="Outro" ? '<div style="margin-top:8px">'+fTexto("mecanismo_outro","Qual mecanismo")+'</div>' : "")
-   + '<div style="margin-top:10px">'+fMulti("agravantes","Agravantes",["Ejeção","Óbito no local","Encarceramento","Sem cinto/capacete","Alta velocidade","Nenhum"])+'</div>'
+   + (mecanismoMisto() && !get("mecanismo_tipo") ? '<div class="alert a" style="margin-top:8px">Mecanismo misto (penetrante + contuso). '
+      + 'Escolha acima o <b>tipo predominante</b> — é ele que define RABT e TRISS. Sem escolha, o app considera penetrante.</div>' : "")
+   + perguntaTorso()
+   + (tem("mecanismo","Queda") ? '<div class="grid g4" style="margin-top:8px">'+fTexto("queda_altura","Altura da queda (m)","","number")+'</div>' : "")
+   + (tem("mecanismo","Outro") ? '<div style="margin-top:8px">'+fTexto("mecanismo_outro","Qual mecanismo")+'</div>' : "")
+   + (Array.isArray(get("mecanismo")) && get("mecanismo").some(m=>m in VEL_LIMITE)
+      ? '<div class="grid g4" style="margin-top:8px">'+fTexto("velocidade","Velocidade estimada (km/h)","se informada","number")+'</div>'
+        + (velocidadeAlta()===true ? '<div class="alert a" style="margin-top:6px">Alta velocidade — acima do limite para '
+             + (tem("mecanismo","Colisão moto") ? "moto (> 32 km/h)" : "carro (> 50 km/h)") + '.</div>' : "")
+      : "")
+   + '<div style="margin-top:10px">'+fMulti("agravantes","Agravantes",["Ejeção","Óbito no local","Encarceramento","Sem cinto/capacete","Alta velocidade","Nenhum"])
+   + '<p class="hint" style="margin:4px 0 0">Alta velocidade: <b>&gt; 50 km/h para carros</b> · <b>&gt; 32 km/h para motos</b>. '
+   + 'Com a velocidade informada, o app marca sozinho.</p></div>'
    + '</div>'
 
    + '<div class="sec"><h2>I · Injúrias identificadas na cena</h2>'
    + fArea("injurias","Lesões descritas pelo APH","deformidades, sangramentos, lesões de partes moles…")
    + '</div>'
 
-   + '<div class="sec"><h2>S · Sinais vitais da cena</h2><div class="grid g6">'
-   + fTexto("cena_pas","PAS","","number") + fTexto("cena_pad","PAD","","number")
-   + fTexto("cena_fc","FC","","number") + fTexto("cena_fr","FR","","number")
-   + fTexto("cena_spo2","SpO₂ %","","number") + fTexto("cena_gcs","GCS","","number")
-   + '</div></div>'
+   + '<div class="sec"><h2>S · Sinais vitais da cena</h2>'
+   + fRadio("cena_sv","Sinais vitais",["Presentes","Ausentes"])
+   + (get("cena_sv")==="Ausentes" ? blocoPCR() :
+      '<div class="grid g6" style="margin-top:10px">'
+      + fTexto("cena_pas","PAS","","number") + fTexto("cena_pad","PAD","","number")
+      + fTexto("cena_fc","FC","","number") + fTexto("cena_fr","FR","","number")
+      + fTexto("cena_spo2","SpO₂ %","","number") + fTexto("cena_gcs","GCS","","number")
+      + '</div>')
+   + '</div>'
 
    + '<div class="sec"><h2>T · Transporte</h2>'
    + fRadio("transporte","Quem trouxe",["SAMU","Bombeiros","GRAU","Próprios meios","Outro serviço"])
@@ -849,7 +1568,8 @@ function secCena(){
 function calcAdmHTML(){
   const si = shockIndex(), g = gcsTotal();
   let h = "";
-  if(g!==null) h += '<div class="alert '+(g<=8?"r":(g<=12?"a":"g"))+'">Glasgow '+g+'</div>';
+  if(g!==null) h += '<div class="alert '+(g<=8?"r":(g<=12?"a":"g"))+'">Glasgow '+g
+     + ' (O'+get("gcs_o")+' V'+get("gcs_v")+' M'+get("gcs_m")+') — TCE '+gcsGravidade(g)+'</div>';
   if(si!==null) h += '<div class="alert '+(si>=1?"r":"g")+'">Shock Index '+si.toFixed(2)+(si>=1?" — perfusão comprometida, considere critérios de transfusão maciça":"")+'</div>';
   return h;
 }
@@ -862,31 +1582,42 @@ function secAdmissao(){
    + fTexto("adm_spo2","SpO₂ %","","number") + fTexto("adm_tax","Temperatura °C","","number")
    + fTexto("adm_tec","TEC (s)","","number") + fTexto("adm_dextro","Dextro","","number")
    + '</div>'
-   + '<div class="grid g3" style="margin-top:10px">'
-   + fRadio("gcs_o","Abertura ocular (O)",["1","2","3","4"])
-   + fRadio("gcs_v","Resposta verbal (V)",["1","2","3","4","5"])
-   + fRadio("gcs_m","Resposta motora (M)",["1","2","3","4","5","6"])
-   + '</div>'
+   + '<h2 style="margin-top:16px">Escala de Coma de Glasgow</h2>'
+   + '<p class="hint" style="margin:-4px 0 10px">Melhor resposta em cada item. Total de 3 a 15.</p>'
+   + '<div class="grid gcsg">' + fGcs("gcs_o") + fGcs("gcs_v") + fGcs("gcs_m") + '</div>'
    + '<div id="calc-adm">'+calcAdmHTML()+'</div>'
    + '</div>';
   return h;
 }
 
 /* --- 4 · XABCDE --- */
+/* estado de cada letra: "N" normal, "A" alterado, "" não avaliado */
+function estadoX(k){
+  if(get(k+"_normal")) return "N";
+  if(get(k+"_alt") || get(k+"_alterado")) return "A";
+  return "";
+}
 function secXabcde(){
   let h='<div class="sec"><h2>X-ABCDE — registro por exceção</h2>'
-   + '<p class="hint" style="margin:-4px 0 12px">Marque NORMAL quando a frase descreve o paciente. Escreva só o que fugiu do padrão.</p>';
+   + '<p class="hint" style="margin:-4px 0 12px">NORMAL = a frase-padrão descreve o paciente (valores em negrito vêm da Admissão e do FAST). '
+   + 'Se algo fugiu do padrão, escreva no campo da letra — ela vira ALTERADO sozinha.</p>';
   XABCDE.forEach(([L,k,frase,intervs])=>{
-    const norm = get(k+"_normal");
-    h += '<div class="xrow">'
+    const st = estadoX(k);
+    h += '<div class="xrow '+(st==="A"?"alt":(st==="N"?"ok":""))+'">'
        + '<div class="xhead"><div class="xltr">'+L+'</div>'
-       + '<div class="xnorm">'+frase+'</div>'
-       + ((!norm && !get(k+"_alterado") && tem("xabcde_pend",L))
-          ? '<span style="background:#fff6e5; color:#7a4a00; border:1.5px solid #b26a00; border-radius:999px; font-size:12px; font-weight:800; padding:6px 11px; white-space:nowrap">PENDENTE</span>'
+       + '<div class="xnorm">'+fraseX(frase)+'</div>'
+       + ((!st && tem("xabcde_pend",L))
+          ? '<span class="pend">PENDENTE</span>'
           : '')
-       + '<button class="btn-norm '+(norm?"on":"")+'" data-a="bool" data-k="'+k+'_normal">'+(norm?"NORMAL ✓":"NORMAL")+'</button>'
-       + '</div>';
-    if(!norm) h += fArea(k+"_alterado","O que está alterado","descreva objetivamente");
+       + '<div class="xbtns">'
+       + '<button class="btn-norm '+(st==="N"?"on":"")+'" data-a="xnorm" data-k="'+k+'">'+(st==="N"?"NORMAL ✓":"NORMAL")+'</button>'
+       + '<button class="btn-alt '+(st==="A"?"on":"")+'" data-a="xalt" data-k="'+k+'">'+(st==="A"?"ALTERADO ✓":"ALTERADO")+'</button>'
+       + '</div></div>';
+    if(k==="b") h += botoesLS();
+    if(k==="c") h += botoesFAST() + botoesPlus();
+    if(conflitoX(k)) h += '<div class="alert a" style="margin:4px 0 6px">'+conflitoX(k)+'</div>';
+    /* campo sempre à mão: escrever nele já marca a letra como ALTERADO */
+    h += fArea(k+"_alterado","Alterações em "+L,"em branco se normal — descreva aqui o que fugiu do padrão");
     h += '<div class="opts" style="margin-top:8px">';
     intervs.forEach(v=>{ h += '<button class="opt '+(tem(k+"_int",v)?"on":"")+'" data-a="multi" data-k="'+k+'_int" data-v="'+v+'">'+v+'</button>'; });
     h += '</div></div>';
@@ -901,71 +1632,55 @@ function secXabcde(){
   return h;
 }
 
-/* --- 5 · FAST e NEXUS --- */
+/* --- 5 · E-FAST e E-FAST-PLUS --- */
 function secFast(){
-  const janelas = [["fast_morrison","Morrison"],["fast_espleno","Esplenorrenal"],
-                   ["fast_pelvica","Pélvica"],["fast_subxifoide","Subxifoide"]];
-  let h='<div class="sec"><h2>E-FAST</h2><div class="grid g4">';
-  janelas.forEach(([k,rot])=>{
-    h += '<div class="fld"><label>'+rot+'</label><div class="opts">'
-       + ['+','−','NR'].map(v=>'<button class="opt '+(get(k)===v?"on "+(v==="+"?"warn":""):"")+'" data-a="radio" data-k="'+k+'" data-v="'+v+'" style="flex:1; justify-content:center">'+v+'</button>').join("")
-       + '</div></div>';
-  });
-  h += '</div>';
-  h += '<div style="margin-top:12px">'+fRadio("efast_global","Resultado global",["Negativo","Positivo","Não realizado"])+'</div>';
-  if(get("efast_global")==="Positivo") h += '<div style="margin-top:8px">'+fTexto("efast_achado","Achado","líquido livre em…")+'</div>';
+  let h='<div class="sec"><h2>E-FAST</h2>';
+  h += botoesFAST();
+  if(get("efast_global")) h += '<p class="hint" style="margin:4px 0 10px">Resultado global (calculado): <b>'+get("efast_global")+'</b></p>';
+  if(get("efast_global")==="Positivo") h += '<div style="margin-bottom:10px">'+fTexto("efast_achado","Detalhe do achado (opcional)","volume, aspecto…")+'</div>';
+  h += botoesLS();
+  h += botoesPlus();
   h += '<p class="hint" style="margin-top:8px">Janela que não deu para ver é NR, nunca negativa.</p></div>';
 
-  const pos = nexusPositivo();
-  h += '<div class="sec"><h2>Coluna cervical — NEXUS</h2>'
-   + '<p class="hint" style="margin:-4px 0 10px">Marque o que ESTÁ presente.</p><div class="opts">'
-   + fBool("nex_dor","Dor cervical posterior","warn")
-   + fBool("nex_deficit","Déficit neurológico focal","warn")
-   + fBool("nex_consciencia","Alteração da consciência","warn")
-   + fBool("nex_intox","Intoxicação","warn")
-   + fBool("nex_distrativa","Lesão distrativa","warn")
-   + '</div>'
-   + '<div class="alert '+(pos?"r":"g")+'">'
-   + (pos ? "NEXUS alterado — mantenho o colar e solicito TC de coluna cervical."
-          : "Nenhum critério presente — coluna cervical liberada clinicamente, posso retirar o colar sem imagem.")
-   + '</div></div>';
   return h;
 }
 
 /* --- 6 · hemostasia --- */
 function secHemo(){
   const r = rabtPontos();
-  let h='<div class="sec"><h2>Ácido tranexâmico</h2>'
+  let h = blocoSangueTotal()
+   + '<div class="sec"><h2>Ácido tranexâmico</h2>'
    + fRadio("atx","Situação",["Feito","Não feito"])
    + (get("atx")==="Feito" ? '<div style="margin-top:10px">'
-        + fRadio("atx_esquema","Esquema utilizado",["1 g em 10 min + 1 g em 8 h","1 g dose única","2 g em bolus único","Outro"])+'</div>' : "")
+        + fRadio("atx_esquema","Esquema utilizado",ATX_ESQUEMAS)
+        + (get("atx_esquema")==="Outro" ? '<div style="margin-top:8px">'+fTexto("atx_outro","Qual esquema")+'</div>' : "")
+        + '</div>' : "")
    + (get("atx")==="Não feito" ? '<div style="margin-top:10px">'
         + fRadio("atx_motivo","Motivo",["Mais de 3 h do trauma","Sem sangramento","Contraindicação","Outro"])+'</div>' : "")
-   + '<div class="opts" style="margin-top:10px">'
-   + fBool("calcio","Cálcio reposto","good")
-   + '</div></div>';
+   + '</div>';
 
   const siH = shockIndex();
   const siPos = siH!==null && siH>1;
-  const tipoDefinido = !!get("mecanismo_tipo") || ["FAF","FAB"].indexOf(get("mecanismo"))>=0;
-  h += '<div class="sec"><h2>RABT — gatilho de transfusão maciça</h2><div class="opts">'
-   + (tipoDefinido
-      ? '<button class="opt '+(ehPenetrante()?"on warn":"")+'" style="pointer-events:none; opacity:.9">Mecanismo penetrante'+(ehPenetrante()?" ✓":"")+'</button>'
-      : fBool("rabt_penetrante","Mecanismo penetrante","warn"))
+    h += '<div class="sec"><h2>RABT — gatilho de transfusão maciça</h2><div class="opts">'
+   + '<button class="opt '+(rabtTorso()?"on warn":"")+'" data-a="torso">Ferimento penetrante em torso'+(rabtTorso()?" ✓":"")+'</button>'
    + '<button class="opt '+(get("efast_global")==="Positivo"?"on warn":"")+'" style="pointer-events:none; opacity:.9">FAST positivo'+(get("efast_global")==="Positivo"?" ✓":"")+'</button>'
    + '<button class="opt '+(siPos?"on warn":"")+'" style="pointer-events:none; opacity:.9">Shock Index &gt; 1,0'
      +(siH!==null?" ("+siH.toFixed(2)+")":"")+(siPos?" ✓":"")+'</button>'
    + fBool("rabt_pelve","Fratura de pelve (suspeita ou confirmada)","warn")
    + '</div>'
+   + (cenaContusa() ? '<p class="hint" style="margin:6px 0 0">Cena registrou trauma contuso: o critério de ferimento penetrante em torso não pontua.</p>' : "")
    + '<div class="alert '+(r>=2?"r":"g")+'">RABT '+r+' ponto'+(r===1?"":"s")+(r>=2?" — critério atingido, acionar protocolo de transfusão maciça.":" — abaixo do gatilho.")+'</div>'
-   + '<p class="hint">Penetrante vem do tipo de trauma registrado na Cena; FAST e Shock Index, dos blocos anteriores. '
-   + 'Só a fratura de pelve é marcada aqui.</p></div>';
+   + '<p class="hint"><b>Critérios do RABT</b> (1 ponto cada; ≥ 2 aciona PTM): ferimento penetrante <b>em torso</b> ('+TORSO_TXT+') · '
+   + 'FAST positivo · Shock Index &gt; 1,0 · fratura de pelve. Tipo de trauma vem da Cena; FAST, Shock Index e pelve, dos blocos anteriores.</p></div>';
 
   h += '<div class="sec"><h2>Transfusão até a saída da sala</h2>'
    + fRadio("ptm","Protocolo de transfusão maciça",["Acionado","Não indicado"])
+   + blocoCalcio()
    + '<div class="grid g4" style="margin-top:10px">'
    + fTexto("t_ch","Hemácias (U)","","number") + fTexto("t_pfc","Plasma (U)","","number")
-   + fTexto("t_plq","Plaquetas (U)","","number") + fTexto("t_st","Sangue total (U)","","number")
+   + fTexto("t_plq","Plaquetas (U)","","number")
+   + '<div class="fld"><label>Sangue total (U)</label><div class="hint" style="padding-top:12px">'
+   + (stAcionado() ? '<b style="color:#ffb3b5">'+(get("t_st")||"0")+' U — no bloco de destaque</b>' : 'não acionado')+'</div></div>'
    + '</div>'
    + '<div class="grid g2" style="margin-top:10px">'
    + fTexto("t_ciclos","Ciclos de PTM","","number")
@@ -978,6 +1693,12 @@ function secHemo(){
 function secSaida(){
   return '<div class="sec"><h2>Saída da sala</h2>'
    + fRadio("destino","Destino imediato",["Centro cirúrgico","UTI","Enfermaria","Observação","Alta do PS","Transferência","Óbito na sala"])
+   + '<div style="margin-top:12px">'+fMulti("saida_aguarda","Pendências na saída (marque uma ou as duas)",["Aguarda exames laboratoriais","Aguarda exames de imagem"])+'</div>'
+   + (tem("saida_aguarda","Aguarda exames laboratoriais") || tem("saida_aguarda","Aguarda exames de imagem")
+      ? '<div class="grid g2" style="margin-top:8px">'
+        + (tem("saida_aguarda","Aguarda exames laboratoriais") ? fTexto("aguarda_lab","Quais exames laboratoriais","ex.: gasometria, Hb, coagulograma") : "")
+        + (tem("saida_aguarda","Aguarda exames de imagem") ? fTexto("aguarda_img","Quais exames de imagem","ex.: TC de crânio, angio-TC") : "")
+        + '</div>' : "")
    + '<div style="margin-top:12px">'+fRadio("conduta","Conduta",["Tratamento conservador","Cirurgia"])+'</div>'
    + (get("conduta")==="Cirurgia" ? '<div style="margin-top:10px">'
        + fMulti("procedimento","Procedimento",["Laparotomia","Damage control","Toracotomia","Toracostomia isolada","Fixador externo","Angioembolização","Craniotomia","Outro"])+'</div>' : "")
@@ -1005,7 +1726,7 @@ function secEscores(){
      + '<div class="sv">'+(si===null?"—":si.toFixed(2))+'</div>'
      + '<div class="sd">'+(si===null?"Precisa de FC e PA sistólica"
         : (si>=1?"≥ 1,0 — perfusão comprometida":"Abaixo de 1,0"))+'</div></div>';
-  const rbItens = [ehPenetrante()?"penetrante":null,
+  const rbItens = [rabtTorso()?"penetrante em torso":null,
                    get("efast_global")==="Positivo"?"FAST+":null,
                    (si!==null&&si>1)?"Shock Index > 1,0":null,
                    get("rabt_pelve")?"fratura de pelve":null].filter(Boolean).join(" · ");
@@ -1065,14 +1786,26 @@ function secEscores(){
 
 /* --- 9 · pós --- */
 function secPos(){
+  const tcci = indicacoes(TCCI_GRUPOS,"tcci_ind"), tcseg = indicacoes(TCSEG_GRUPOS,"tcseg_ind");
   let h = '<div class="sec"><h2>Tomografia</h2>'
-   + fRadio("tc","Realizada",["Sim","Não"]) ;
+   + '<p class="hint" style="margin:-4px 0 6px">Indicações na avaliação secundária. Itens marcados <b>· auto</b> foram detectados '
+   + 'nos dados já preenchidos (mecanismo, sinais vitais, Glasgow, FAST, pelve); os demais, toque para marcar.</p>'
+   + blocoIndicacoes("TC de corpo inteiro (TCCI)", TCCI_GRUPOS, "tcci_ind")
+   + (tcci.length ? '<div class="alert r">TC de corpo inteiro indicada — '+tcci.length+' critério'+(tcci.length>1?"s":"")+'.</div>' : "")
+   + blocoIndicacoes("TC por segmento", TCSEG_GRUPOS, "tcseg_ind")
+   + (!tcci.length && tcseg.length ? '<div class="alert a">TC segmentar indicada: '
+        + TCSEG_GRUPOS.filter(([g,it])=>it.some(([r])=>tcseg.indexOf(r)>=0)).map(([g])=>g.split(" (")[0].toLowerCase()).join(", ")+'.</div>' : "")
+   + '<div style="margin-top:14px">' + fRadio("tc","Realizada",["Sim","Não"]) + '</div>';
   if(get("tc")==="Não") h += '<div style="margin-top:10px">'+fRadio("tc_motivo","Motivo",["Instabilidade ou cirurgia imediata","Não indicada","Óbito","Aparelho indisponível"])+'</div>';
   if(get("tc")==="Sim"){
     h += '<div class="grid g2" style="margin-top:10px">'
       + fTexto("tc_solicitada","Hora da solicitação","HH:MM")
       + fRadio("tc_protocolo","Protocolo",["Whole-body","Segmentar"])
       + '</div>'
+      + '<div class="fld" style="margin-top:10px"><label>Protocolo de contraste</label><div class="opts">'
+      + TC_CONTRASTE.map(([v,d])=>'<button class="opt '+(tem("tc_contraste",v)?"on":"")+'" data-a="multi" data-k="tc_contraste" data-v="'+v+'">'
+           + v + (d?'<small style="display:block; font-size:11.5px; opacity:.75; font-weight:400">'+d+'</small>':'')+'</button>').join("")
+      + '</div><p class="hint" style="margin:4px 0 0">Pode combinar (ex.: split-bolus + excretor tardio).</p></div>'
       + '<div style="margin-top:10px">'+fArea("tc_achados","Achados principais")+'</div>'
       + '<div class="grid g2" style="margin-top:10px">'
       + fTexto("tc_orgao","Lesão de órgão sólido") + fTexto("tc_aast","Grau AAST","","number")
@@ -1107,22 +1840,57 @@ function secPos(){
 function ligar(){
   app.querySelectorAll("[data-a]").forEach(el=>{
     el.addEventListener("click", ev=>{
-      const a = el.dataset.a, k = el.dataset.k, v = el.dataset.v, i = el.dataset.i;
+      const a = el.dataset.a, k = el.dataset.k, v = el.dataset.v, i = el.dataset.i, u = el.dataset.u;
       if(a==="novo") return novoCaso();
-      if(a==="abrir"){ atual = +i; aba=0; vista="ficha"; PARSE_MSG=""; return render(); }
+      if(a==="abrir"){ atualUid = u; aba=0; vista="ficha"; PARSE_MSG=""; return render(); }
       if(a==="apagar"){
-        const c = CASOS[+i];
-        if(confirm("Apagar o caso "+(c && c.id ? c.id : "?")+"? Esta ação não tem volta.\nSe for caso real, exporte o CSV antes.")){
-          CASOS.splice(+i,1); atual = null; salvar(); render();
+        const c = CASOS.find(x=>x._uid===u);
+        if(c && confirm("Apagar o caso "+(c.id||"?")+"? Esta ação não tem volta.\nSe for caso real, exporte o CSV antes.")){
+          /* "lápide" em vez de remover: senão outro aparelho/aba ressuscita o caso */
+          Object.keys(c).forEach(key=>{ if(["_uid","id","_criado"].indexOf(key)<0) delete c[key]; });
+          c._apagado = true; atualUid = c._uid; salvar(); atualUid = null; render();
         }
         return;
       }
       if(a==="aba"){ aba = +i; return render(); }
-      if(a==="radio"){ set(k, get(k)===v ? undefined : v); return render(); }
-      if(a==="multi"){ toggleMulti(k,v); return render(); }
-      if(a==="bool"){ set(k, get(k) ? undefined : true); return render(); }
-      if(a==="agora"){ set(k, agoraHM()); return render(); }
-      if(a==="na"){ set(k, get(k)==="NA" ? undefined : "NA"); return render(); }
+      if(a==="radio"){
+        set(k, get(k)===v ? undefined : v);
+        if(/^efast_ls_[de]$/.test(k) || /^fast_/.test(k) || k==="efast_sinfise_cm") sincronizarExameX();
+        return render();
+      }
+      if(a==="multi"){
+        if(k==="tc_contraste"){
+          const c = caso(), atual = Array.isArray(c.tc_contraste) ? c.tc_contraste : [];
+          if(v==="Sem contraste" && atual.indexOf(v)<0) c.tc_contraste = [];
+          else if(v!=="Sem contraste") c.tc_contraste = atual.filter(x=>x!=="Sem contraste");
+        }
+        toggleMulti(k,v);
+        if(k==="mecanismo") aplicarVelocidade();
+        if(k==="agravantes" && v==="Alta velocidade") delete caso()._imp_vel;  /* escolha manual prevalece */
+        return render();
+      }
+      if(a==="bool"){ if(k==="rabt_pelve") delete caso()._imp_pelve; set(k, get(k) ? undefined : true); return render(); }
+      if(a==="agora"){
+        if(get(k)) return render();               /* toque duplo não sobrescreve */
+        const c = caso(); const agora = new Date();
+        c["_ts_"+k] = agora.toISOString();        /* com segundos, para auditoria */
+        const imp = HORARIO_IMPLICA[k];
+        if(imp && imp[1] && !c[imp[0]]){ c[imp[0]] = imp[1]; c["_imp_"+k] = true; }
+        set(k, dois(agora.getHours())+":"+dois(agora.getMinutes()));
+        if(navigator.vibrate) navigator.vibrate(30);
+        return render();
+      }
+      if(a==="limpar"){
+        const rot = (HORARIOS.find(x=>x[0]===k)||[k,k])[1];
+        if(confirm("Desfazer o horário de \""+rot+"\" ("+(get(k)==="NA"?"N/A":get(k))+")?\nUse só se foi toque por engano.")){
+          const c = caso(); delete c["_ts_"+k];
+          /* desfaz também o que o toque tinha preenchido sozinho em outra aba */
+          if(c["_imp_"+k]){ delete c[HORARIO_IMPLICA[k][0]]; delete c["_imp_"+k]; }
+          set(k, undefined);
+        }
+        return render();
+      }
+      if(a==="na"){ const c=caso(); delete c["_ts_"+k]; set(k, get(k)==="NA" ? undefined : "NA"); return render(); }
       if(a==="editar"){
         const atualv = (get(k)&&get(k)!=="NA") ? get(k) : "";
         const r = prompt("Horário no formato HH:MM", atualv);
@@ -1133,6 +1901,49 @@ function ligar(){
           else alert("Formato inválido. Use HH:MM, por exemplo 22:05.");
         }
         return render();
+      }
+      if(a==="lsbil"){
+        const bil = get("efast_ls_d")==="Positivo" && get("efast_ls_e")==="Positivo";
+        const c = caso();
+        if(bil){ delete c.efast_ls_d; delete c.efast_ls_e; } else { c.efast_ls_d = "Positivo"; c.efast_ls_e = "Positivo"; }
+        sincronizarExameX(); return render();
+      }
+      if(a==="st"){
+        const c = caso();
+        if(stAcionado()){
+          if(!confirm("Desfazer o acionamento do sangue total?")) return;
+          delete c.st_acionado; delete c.h_st; delete c._ts_h_st; delete c._imp_h_st;
+          salvar(); return render();
+        }
+        const agora = new Date();
+        c.st_acionado = "Sim";
+        if(!c.h_st || c.h_st==="NA"){ c.h_st = dois(agora.getHours())+":"+dois(agora.getMinutes()); c._ts_h_st = agora.toISOString(); }
+        if(navigator.vibrate) navigator.vibrate(40);
+        salvar(); return render();
+      }
+      if(a==="torso"){
+        if(cenaContusa()){ alert("A Cena registrou trauma contuso. Corrija o tipo de trauma em iMIST-AMBO se o ferimento for penetrante."); return; }
+        set("rabt_torso", get("rabt_torso")==="Sim" ? undefined : "Sim"); return render();
+      }
+      if(a==="xnorm"){
+        if(estadoX(k)==="N"){ set(k+"_normal", undefined); return render(); }
+        if(EXAME_X[k] && !get(EXAME_X[k][0])){ alert("Preencha o "+EXAME_X[k][1]+" antes de declarar "+k.toUpperCase()+" normal."); return; }
+        if((k==="b" && get("efast_ls")==="Negativo") || (k==="c" && (get("efast_global")==="Positivo" || pelveInstavel()))){
+          alert(k==="b" ? "LS negativo: a letra B está alterada." : "FAST positivo ou pelve instável: a letra C está alterada."); return;
+        }
+        if(get(k+"_alterado") && !confirm("Marcar NORMAL apaga a descrição do que estava alterado. Continuar?")) return;
+        const c = caso(); delete c[k+"_alterado"]; delete c[k+"_alt"];
+        set(k+"_normal", true); return render();
+      }
+      if(a==="xalt"){
+        if(estadoX(k)==="A"){
+          if(get(k+"_alterado")){ alert("Apague a descrição antes de desmarcar ALTERADO."); return; }
+          set(k+"_alt", undefined); return render();
+        }
+        const c = caso(); delete c[k+"_normal"];
+        set(k+"_alt", true); render();
+        const ta = app.querySelector('textarea[data-k="'+k+'_alterado"]'); if(ta) ta.focus();
+        return;
       }
       if(a==="fechar"){ set("_fechado", get("_fechado") ? undefined : true); return render(); }
       if(a==="parse"){ parseAPH(); return render(); }
@@ -1147,6 +1958,25 @@ function ligar(){
            enquanto alguém digita, sob pena de perder o valor e fechar o teclado */
         const alvo = document.getElementById("calc-adm");
         if(alvo && (el.dataset.k==="adm_pas" || el.dataset.k==="adm_fc")) alvo.innerHTML = calcAdmHTML();
+        const mx = /^([xabcde])_alterado$/.exec(el.dataset.k);
+        if(mx && el.value.trim()){
+          const L = mx[1], c = caso();
+          if(c[L+"_normal"] || !c[L+"_alt"]){ delete c[L+"_normal"]; c[L+"_alt"] = true; salvar(); }
+          const row = el.closest(".xrow");
+          if(row){
+            row.classList.remove("ok"); row.classList.add("alt");
+            const bn = row.querySelector('[data-a="xnorm"]'), ba = row.querySelector('[data-a="xalt"]');
+            if(bn){ bn.classList.remove("on"); bn.textContent = "NORMAL"; }
+            if(ba){ ba.classList.add("on"); ba.textContent = "ALTERADO ✓"; }
+          }
+        }
+      });
+      if(el.dataset.k==="h_trauma") el.addEventListener("change", ()=> render());
+      if(el.dataset.k==="velocidade") el.addEventListener("change", ()=>{ aplicarVelocidade(); render(); });
+      if(el.dataset.k==="efast_sinfise_cm") el.addEventListener("change", ()=>{ sincronizarExameX(); render(); });
+      if(el.dataset.k==="t_ch" || el.dataset.k==="calcio_ampolas") el.addEventListener("change", ()=>{
+        const c = caso(); if((parseInt(c.calcio_ampolas,10)||0)>0) c.calcio_reposto_sala = true; else delete c.calcio_reposto_sala;
+        salvar(); render();
       });
     }
   });
@@ -1159,7 +1989,7 @@ document.getElementById("btnNext").addEventListener("click", ()=>{ if(aba<SECOES
 /* ============================ EXPORTAÇÃO ============================ */
 function colunas(){
   const set0 = new Set();
-  CASOS.forEach(c=>Object.keys(c).forEach(k=>set0.add(k)));
+  ativos().forEach(c=>Object.keys(c).forEach(k=>{ if(["_uid","_atualizado","_apagado","_sinc"].indexOf(k)<0 && k.indexOf("_imp_")!==0 && k.indexOf("_auto_")!==0) set0.add(k); }));
   const fixas = ["id","data","idade","sexo","preenchido_por","ativacao"].concat(HORARIOS.map(x=>x[0]));
   const resto = [...set0].filter(k=>fixas.indexOf(k)<0).sort();
   return fixas.filter(k=>set0.has(k)||true).concat(resto);
@@ -1167,11 +1997,11 @@ function colunas(){
 function csv(){
   const cols = colunas();
   const der = ["_gcs_total","_shock_index","_rabt","_rts_t","_rts_ponderado","_iss","_triss_ps","_triss_coef",
-               "_porta_tc_min","_porta_transf_min","_porta_cc_min","_tempo_sala_min","_trauma_atx_min"];
+               "_porta_tc_min","_porta_transf_min","_porta_cc_min","_tempo_sala_min","_trauma_atx_min"].concat(["_tcci_indicada","_tcci_criterios","_tcseg_criterios"]).concat(MECANISMOS.map(slugMec)).concat(XABCDE.map(x=>"_status_"+x[1]));
   const head = cols.concat(der).join(";");
-  const linhas = CASOS.map(c=>{
-    const salvo = atual, tmp = CASOS.indexOf(c);
-    atual = tmp;
+  const linhas = ativos().map(c=>{
+    const salvo = atualUid;
+    atualUid = c._uid;
     const d = {
       _gcs_total: gcsTotal() ?? "",
       _shock_index: shockIndex() ?? "",
@@ -1187,7 +2017,11 @@ function csv(){
       _tempo_sala_min: difMin(c.h_porta,c.h_saida) ?? "",
       _trauma_atx_min: difMin(c.h_trauma,c.h_atx) ?? ""
     };
-    atual = salvo;
+    const _ti = indicacoes(TCCI_GRUPOS,"tcci_ind"), _ts = indicacoes(TCSEG_GRUPOS,"tcseg_ind");
+    d._tcci_indicada = _ti.length ? "sim" : "não"; d._tcci_criterios = _ti.join(" | "); d._tcseg_criterios = _ts.join(" | ");
+    XABCDE.forEach(x=>{ const st = estadoX(x[1]); d["_status_"+x[1]] = st==="N" ? "normal" : (st==="A" ? "alterado" : ""); });
+    MECANISMOS.forEach(m=>{ d[slugMec(m)] = (Array.isArray(c.mecanismo) && c.mecanismo.indexOf(m)>=0) ? 1 : 0; });
+    atualUid = salvo;
     const cel = k=>{
       let v = (k in d) ? d[k] : c[k];
       if(v===undefined||v===null) v="";
@@ -1215,7 +2049,7 @@ function baixar(txt, nome, tipo){
 }
 document.getElementById("btnCloseExp").addEventListener("click", ()=> document.getElementById("dlgExport").close());
 document.getElementById("btnDl").addEventListener("click", ()=> baixar(csv(), "ficha_trauma_"+hojeISO()+".csv", "text/csv;charset=utf-8"));
-document.getElementById("btnDlJson").addEventListener("click", ()=> baixar(JSON.stringify(CASOS,null,2), "backup_trauma_"+hojeISO()+".json", "application/json"));
+document.getElementById("btnDlJson").addEventListener("click", ()=> baixar(JSON.stringify(ativos(),null,2), "backup_trauma_"+hojeISO()+".json", "application/json"));
 document.getElementById("btnCopy").addEventListener("click", async ()=>{
   const t = csv();
   try{ await navigator.clipboard.writeText(t); alert("CSV copiado. Cole numa planilha."); }
@@ -1226,12 +2060,189 @@ document.getElementById("btnCopy").addEventListener("click", async ()=>{
   }
 });
 
+/* ---------- importar backup JSON (mescla, nunca substitui) ---------- */
+document.getElementById("btnImp").addEventListener("click", ()=> document.getElementById("fileImp").click());
+document.getElementById("fileImp").addEventListener("change", ev=>{
+  const f = ev.target.files && ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const dados = JSON.parse(r.result);
+      if(!Array.isArray(dados)) throw new Error("formato");
+      const antes = ativos().length;
+      CASOS = mesclar(CASOS, dados);
+      gravarLocal(); Sync.enviarTudo();
+      alert("Backup importado. Casos: "+antes+" → "+ativos().length+".");
+      document.getElementById("dlgExport").close(); render();
+    }catch(e){ alert("Arquivo inválido. Use o 'Backup JSON' gerado por este app."); }
+    ev.target.value = "";
+  };
+  r.readAsText(f);
+});
+
+/* ---------- avisos sobre onde os dados estão ---------- */
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+const STANDALONE = !!(navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches));
+function avisosAmbiente(){
+  let h = "";
+  if(!STORAGE_OK) h += '<div class="aviso r"><b>Este navegador não está guardando dados</b> (provável aba privada). '
+    + 'Tudo some ao fechar. Abra em aba normal ou pelo ícone do app.</div>';
+  if(IOS && !STANDALONE) h += '<div class="aviso"><b>Você está no Safari, não no app.</b> No iPhone/iPad, o Safari e o ícone da '
+    + 'Tela de Início guardam casos em lugares <b>separados</b>, e o Safari pode apagar dados de sites após 7 dias sem uso. '
+    + 'Use sempre o ícone: Compartilhar → Adicionar à Tela de Início.</div>';
+  if(!Sync.ligado() && ativos().length) h += '<div class="aviso">Os casos estão só neste aparelho. '
+    + 'Faça <b>Exportar dados → Backup JSON</b> ao fim do plantão.</div>';
+  return h;
+}
+
+/* ============================ SINCRONIZAÇÃO ============================ */
+const Sync = (()=>{
+  let db=null, auth=null, user=null, timer=null, pendente=false, erro="";
+  const ligado = ()=> !!(FIREBASE_CONFIG && user && user.emailVerified);
+  function carregarScript(src){
+    return new Promise((ok,falha)=>{ const s=document.createElement("script"); s.src=src; s.onload=ok; s.onerror=falha; document.head.appendChild(s); });
+  }
+  async function iniciar(){
+    if(!FIREBASE_CONFIG){ chip(); return; }
+    try{
+      const base = "https://www.gstatic.com/firebasejs/"+FIREBASE_VER+"/";
+      await carregarScript(base+"firebase-app-compat.js");
+      await carregarScript(base+"firebase-auth-compat.js");
+      await carregarScript(base+"firebase-firestore-compat.js");
+      firebase.initializeApp(FIREBASE_CONFIG);
+      auth = firebase.auth(); db = firebase.firestore();
+      /* fila offline: o que for salvo sem rede sobe sozinho quando a rede voltar */
+      try{ await db.enablePersistence({synchronizeTabs:true}); }catch(e){}
+      auth.onAuthStateChanged(async u=>{
+        user=u;
+        if(u && !u.emailVerified){ try{ await u.reload(); user = auth.currentUser; }catch(e){} }
+        chip(); if(ligado()) escutar(); render();
+      });
+    }catch(e){ erro="sem rede para carregar a sincronização (os dados seguem salvos no aparelho)"; chip(); }
+  }
+  let parar=null;
+  function escutar(){
+    if(parar) parar();
+    parar = db.collection("casos").onSnapshot({includeMetadataChanges:true}, snap=>{
+      pendente = snap.metadata.hasPendingWrites; chip();
+      if(snap.metadata.hasPendingWrites) return;
+      const remotos = snap.docs.map(d=>d.data());
+      const mapa = new Map(remotos.map(r=>[r._uid,r]));
+      CASOS = mesclar(CASOS, remotos); gravarLocal();
+      /* sobe o que só existe aqui, ou está mais novo aqui */
+      CASOS.forEach(c=>{ const r=mapa.get(c._uid); if(!r || String(c._atualizado)>String(r._atualizado)) enviar(c); });
+      if(vista==="lista") render();
+      else document.getElementById("chipCaso").textContent = get("id")||"—";
+    }, e=>{ erro = "sem permissão — confira as regras do Firestore e o e-mail autorizado"; chip(); });
+  }
+  function enviar(c){
+    if(!ligado()) return;
+    const limpo = JSON.parse(JSON.stringify(c)); /* Firestore não aceita undefined */
+    limpo._por = user.email || "";
+    db.collection("casos").doc(c._uid).set(limpo).catch(()=>{});
+  }
+  function agendar(){
+    if(!ligado()) return;
+    clearTimeout(timer);
+    timer = setTimeout(()=>{ const c = CASOS.find(x=>x._uid===atualUid); if(c) enviar(c); else enviarTudo(); }, 600);
+  }
+  function enviarTudo(){ if(ligado()) CASOS.forEach(enviar); }
+  function chip(){
+    const b = document.getElementById("btnSync"); if(!b) return;
+    if(!FIREBASE_CONFIG) b.textContent = "☁︎ local";
+    else if(erro) b.textContent = "☁︎ erro";
+    else if(!user) b.textContent = "☁︎ entrar";
+    else if(!user.emailVerified) b.textContent = "☁︎ confirmar e-mail";
+    else b.textContent = pendente || !navigator.onLine ? "☁︎ aguardando rede" : "☁︎ na nuvem";
+  }
+  window.addEventListener("online", chip); window.addEventListener("offline", chip);
+  function abrirDialogo(){
+    let sig=""; try{ sig = localStorage.getItem(KEY_SIGLA)||""; }catch(e){}
+    let h = '<label class="hint">Sigla deste aparelho (opcional, ex.: IP1). Entra no código do caso e impede '
+          + 'que dois aparelhos gerem o mesmo número sem rede.</label>'
+          + '<input id="inSigla" maxlength="4" value="'+esc(sig)+'" placeholder="IP1">';
+    if(!FIREBASE_CONFIG){
+      h += '<p class="hint">Sincronização desligada: os casos ficam só neste aparelho. Para ligar, o responsável pelo app '
+         + 'preenche FIREBASE_CONFIG no index.html (instruções no LEIA-ME).</p>';
+    }else if(!user){
+      h += (erro?'<p class="aviso r">'+esc(erro)+'</p>':'')
+         + '<label class="hint">E-mail institucional</label><input id="inEmail" type="email" autocomplete="username" placeholder="nome@unifesp.br">'
+         + '<label class="hint">Senha (mín. 6 caracteres)</label><input id="inSenha" type="password" autocomplete="current-password">'
+         + '<div style="display:flex; gap:8px; flex-wrap:wrap"><button class="btn g" id="btnEntrar">Entrar e sincronizar</button>'
+         + '<button class="btn" id="btnCriar">Criar conta</button>'
+         + '<button class="btn" id="btnEsqueci">Esqueci a senha</button></div>'
+         + '<p class="hint" style="margin-top:8px">Só e-mails autorizados pela coordenação enxergam os casos. Na primeira vez, use "Criar conta" e confirme o link que chega no seu e-mail.</p>';
+    }else if(!user.emailVerified){
+      h += '<p>Conta criada para <b>'+esc(user.email||"")+'</b>. Abra o link de confirmação que enviamos para esse e-mail '
+         + '(confira também o spam) e depois toque em "Já confirmei".</p>'
+         + '<div style="display:flex; gap:8px; flex-wrap:wrap"><button class="btn g" id="btnJaConfirmei">Já confirmei</button>'
+         + '<button class="btn" id="btnReenviar">Reenviar e-mail</button><button class="btn" id="btnSair">Sair</button></div>';
+    }else{
+      h += '<p>Conectado como <b>'+esc(user.email||"")+'</b>. '+(erro?'<span style="color:#ff6b6f">'+esc(erro)+'</span>':'Casos salvos aqui aparecem nos outros aparelhos logados.')+'</p>'
+         + '<button class="btn" id="btnSair">Sair</button>';
+    }
+    document.getElementById("syncBody").innerHTML = h;
+    document.getElementById("inSigla").addEventListener("input", e=>{
+      const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""); e.target.value = v;
+      try{ localStorage.setItem(KEY_SIGLA, v); }catch(_){}
+    });
+    const msg = e=>{
+      const c = (e && e.code) || "";
+      return ({ "auth/invalid-credential":"E-mail ou senha incorretos.", "auth/wrong-password":"Senha incorreta.",
+        "auth/user-not-found":"Conta não encontrada — use Criar conta.", "auth/email-already-in-use":"Esse e-mail já tem conta — use Entrar.",
+        "auth/weak-password":"Senha fraca: use pelo menos 6 caracteres.", "auth/invalid-email":"E-mail inválido.",
+        "auth/network-request-failed":"Sem internet no momento.", "auth/too-many-requests":"Muitas tentativas. Aguarde alguns minutos." }[c]) || ("Erro: "+(c||e.message));
+    };
+    const campos = ()=>[document.getElementById("inEmail").value.trim().toLowerCase(), document.getElementById("inSenha").value];
+    const fechar = ()=> document.getElementById("dlgSync").close();
+    const on = (id, fn)=>{ const el = document.getElementById(id); if(el) el.addEventListener("click", fn); };
+    on("btnEntrar", async ()=>{
+      erro=""; const [em,se] = campos();
+      try{ await auth.signInWithEmailAndPassword(em, se); fechar(); setTimeout(abrirDialogo, 300); }
+      catch(e){ alert(msg(e)); }
+    });
+    on("btnCriar", async ()=>{
+      erro=""; const [em,se] = campos();
+      try{
+        auth.languageCode = "pt";
+        const r = await auth.createUserWithEmailAndPassword(em, se);
+        await r.user.sendEmailVerification();
+        alert("Conta criada. Enviamos um link de confirmação para "+em+".");
+        fechar(); setTimeout(abrirDialogo, 300);
+      }catch(e){ alert(msg(e)); }
+    });
+    on("btnEsqueci", async ()=>{
+      const em = document.getElementById("inEmail").value.trim();
+      if(!em) return alert("Digite seu e-mail primeiro.");
+      try{ auth.languageCode = "pt"; await auth.sendPasswordResetEmail(em); alert("Enviamos um link para redefinir a senha."); }
+      catch(e){ alert(msg(e)); }
+    });
+    on("btnJaConfirmei", async ()=>{
+      try{ await user.reload(); user = auth.currentUser; await user.getIdToken(true); }catch(e){}
+      if(user && user.emailVerified){ chip(); escutar(); fechar(); render(); }
+      else alert("Ainda não consta como confirmado. Abra o link do e-mail e tente de novo.");
+    });
+    on("btnReenviar", async ()=>{
+      try{ auth.languageCode = "pt"; await user.sendEmailVerification(); alert("E-mail reenviado."); }catch(e){ alert(msg(e)); }
+    });
+    on("btnSair", ()=>{ if(parar) parar(); auth.signOut(); fechar(); });
+    document.getElementById("dlgSync").showModal();
+  }
+  return { iniciar, agendar, enviarTudo, ligado, abrirDialogo };
+})();
+document.getElementById("btnSync").addEventListener("click", ()=> Sync.abrirDialogo());
+document.getElementById("btnCloseSync").addEventListener("click", ()=> document.getElementById("dlgSync").close());
+
 /* ============================ INÍCIO ============================ */
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
+/* pede ao navegador para não apagar os dados por falta de espaço/uso */
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+document.getElementById("logosTop").innerHTML = htmlLogos();
 carregar();
 render();
+Sync.iniciar();
 </script>
 </body>
 </html>

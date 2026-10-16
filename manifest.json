@@ -1,13 +1,13 @@
 {
-  "name": "Ficha de Trauma — PS Cirurgia Geral HSP",
+  "name": "Ficha de Padronização Assistencial — Politraumatizado (EPM-UNIFESP · PS CG HSP)",
   "short_name": "Ficha Trauma",
   "description": "Registro estruturado do atendimento inicial ao politraumatizado. Funciona offline.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
-  "background_color": "#eef0f3",
-  "theme_color": "#12253d",
+  "background_color": "#0c141f",
+  "theme_color": "#0c141f",
   "icons": [
     {
       "src": "icon.svg",
